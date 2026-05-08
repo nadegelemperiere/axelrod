@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tournoi Axelrod — Connexion</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="login-body">
+  <main class="login-card">
+    <h1>Tournoi Axelrod</h1>
+    <p class="lede">Tournoi de bots Python — dilemme du prisonnier itéré.</p>
+    <form id="login-form" autocomplete="on">
+      <label>
+        Email
+        <input type="email" id="email" required autocomplete="username">
+      </label>
+      <label>
+        Mot de passe
+        <input type="password" id="password" required autocomplete="current-password">
+      </label>
+      <button type="submit">Se connecter</button>
+      <p id="error" class="error" hidden></p>
+    </form>
+  </main>
+  <script type="module" src="js/login.js"></script>
+</body>
+</html>

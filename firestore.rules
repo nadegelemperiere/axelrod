@@ -1,0 +1,53 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Liste des UIDs admin. Lecture pour tout utilisateur signé (chaque page
+    // vérifie si elle-même est admin), écriture impossible depuis le client
+    // (gérée à la main dans la console Firebase).
+    match /admins/{uid} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /tournaments/{tournamentId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+
+      match /teams/{teamId} {
+        allow read: if isSignedIn();
+        allow create, update, delete: if isAdmin();
+
+        // Soumission de bots : seule l'équipe propriétaire peut créer.
+        // Pas d'update ni delete (chaque soumission est une nouvelle version).
+        match /bots/{botId} {
+          allow read: if isSignedIn();
+          allow create: if isSignedIn() &&
+            get(/databases/$(database)/documents/tournaments/$(tournamentId)/teams/$(teamId)).data.uid_owner == request.auth.uid;
+          allow update, delete: if false;
+        }
+      }
+
+      // Matches et leaderboards écrits uniquement par les Cloud Functions.
+      match /matches/{matchId} {
+        allow read: if isSignedIn();
+        allow write: if false;
+      }
+
+      match /leaderboards/{phaseId} {
+        allow read: if isSignedIn();
+        allow write: if false;
+      }
+    }
+  }
+}

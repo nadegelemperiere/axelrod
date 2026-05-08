@@ -1,0 +1,32 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+*-debug.log
+
+# Functions Python (Sprint 3)
+functions/venv/
+functions/__pycache__/
+functions/*.pyc
+
+# Service account keys — NE JAMAIS committer
+*-service-account.json
+service-account*.json
+serviceAccount*.json
+
+# Env
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp

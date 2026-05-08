@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin · Tournoi Axelrod</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Admin · Tournoi Axelrod</h1>
+    <div class="topbar-right">
+      <span id="user-email" class="muted"></span>
+      <button id="logout-btn" type="button">Déconnexion</button>
+    </div>
+  </header>
+
+  <p id="access-denied" class="access-denied" hidden>
+    Accès refusé — ce compte n'a pas le rôle admin.
+  </p>
+
+  <main id="main" hidden>
+    <section class="card">
+      <h2>Créer un tournoi</h2>
+      <form id="create-form">
+        <label>
+          Nom du tournoi
+          <input type="text" id="t-name" required maxlength="80" placeholder="ex : Axelrod Junior — juin 2026">
+        </label>
+        <div class="row">
+          <label>
+            Nombre de tours par match
+            <input type="number" id="t-turns" value="30" min="5" max="200" required>
+          </label>
+          <label>
+            Niveau de bruit (0 à 0.5)
+            <input type="number" id="t-noise" value="0" step="0.05" min="0" max="0.5" required>
+          </label>
+        </div>
+        <button type="submit">Créer</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Tournois existants</h2>
+      <ul id="t-list" class="t-list"></ul>
+    </section>
+  </main>
+
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>
