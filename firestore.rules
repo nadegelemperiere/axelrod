@@ -20,6 +20,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Mapping UID → équipe assignée. Écrit par l'admin quand il crée une
+    // équipe et lui assigne un compte. Chaque utilisateur ne lit que sa propre
+    // entrée pour savoir vers quelle équipe et quel tournoi le rediriger.
+    match /users/{uid} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow write: if isAdmin();
+    }
+
     match /tournaments/{tournamentId} {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();

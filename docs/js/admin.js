@@ -78,6 +78,7 @@ async function refreshTournaments() {
         <strong>${escapeHtml(t.name)}</strong>
         <span class="badge">${escapeHtml(t.status)}</span>
         <span class="meta">phase ${t.phase} · ${t.nb_turns} tours · bruit ${(t.noise_level * 100).toFixed(0)}%</span>
+        <a href="teams.html?t=${encodeURIComponent(d.id)}" class="link-btn">Équipes →</a>
         <button data-id="${d.id}" class="del-btn" type="button">Supprimer</button>
       </div>
     `;

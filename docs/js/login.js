@@ -10,8 +10,7 @@ onAuth(async (user) => {
   if (admin) {
     window.location.href = "admin.html";
   } else {
-    errEl.textContent = "Compte connecté, mais la page équipe arrive en Sprint 2. Contacte la prof.";
-    errEl.hidden = false;
+    window.location.href = "team.html";
   }
 });
 

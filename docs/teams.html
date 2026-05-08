@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Équipes · Tournoi Axelrod</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1><a href="admin.html" class="back-link">← Admin</a> · Équipes</h1>
+    <div class="topbar-right">
+      <span id="user-email" class="muted"></span>
+      <button id="logout-btn" type="button">Déconnexion</button>
+    </div>
+  </header>
+
+  <p id="access-denied" class="access-denied" hidden>
+    Accès refusé — ce compte n'a pas le rôle admin.
+  </p>
+
+  <main id="main" hidden>
+    <section class="card">
+      <h2 id="t-title">Tournoi</h2>
+      <p class="muted small" id="t-meta"></p>
+    </section>
+
+    <section class="card">
+      <h2>Ajouter une équipe</h2>
+      <form id="add-form">
+        <div class="row">
+          <label>
+            Nom d'équipe
+            <input type="text" id="t-name" required maxlength="40" placeholder="Les Apricots">
+          </label>
+          <label>
+            Emoji (1 caractère)
+            <input type="text" id="t-emoji" maxlength="4" placeholder="🍑">
+          </label>
+        </div>
+        <label>
+          UID Firebase du compte propriétaire
+          <input type="text" id="t-uid" required pattern="[A-Za-z0-9]+" placeholder="copié depuis Authentication > Users">
+        </label>
+        <p class="muted small">
+          Crée d'abord le compte (Console Firebase → Authentication → Add user) puis copie l'UID ici.
+        </p>
+        <button type="submit">Ajouter l'équipe</button>
+        <p id="add-msg" class="validation-msg" hidden></p>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Équipes inscrites</h2>
+      <ul id="teams-list" class="t-list"></ul>
+    </section>
+  </main>
+
+  <script type="module" src="js/teams.js"></script>
+</body>
+</html>

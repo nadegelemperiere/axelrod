@@ -15,7 +15,7 @@ Plateforme web pour organiser des tournois de bots Python type **Axelrod** (dile
 | Sprint | Contenu | Statut |
 |---|---|---|
 | 1 | Squelette : Firebase configuré, Auth email/mdp, panneau admin (créer/lister tournois) | livré |
-| 2 | Page équipe + éditeur Monaco + validation Pyodide + soumission de bot | à venir |
+| 2 | Gestion d'équipes admin + page équipe (Monaco + Pyodide + arène de test + soumission) | livré |
 | 3 | Cloud Functions Python sandboxées + page leaderboard | à venir |
 | 4 | Live updates : cross-table animée, ticker, leaderboard temps réel | à venir |
 | 5 | Replay tour-par-tour, polish, doc admin finale | à venir |
@@ -68,6 +68,26 @@ Sans cette étape, la connexion échoue depuis GitHub Pages avec une erreur de d
 
 Va sur `https://nadegelemperiere.github.io/axelrod/`, connecte-toi avec ton compte admin, tu dois arriver sur le panneau admin et pouvoir créer un premier tournoi.
 
+## Workflow équipes (Sprint 2)
+
+### Créer une équipe
+
+1. **Console Firebase → Authentication → Add user** : crée un compte pour l'équipe (ex : `team-apricot@axelrod.local` + un mot de passe que tu donneras aux deux ados).
+2. Copie l'**UID** généré.
+3. Dans le panneau admin, clique sur **Équipes →** à côté du tournoi voulu.
+4. Remplis le formulaire **Ajouter une équipe** : nom d'équipe, emoji, UID copié à l'étape 2.
+
+L'équipe peut maintenant se connecter avec l'email/mot de passe du compte et accède directement à `team.html`.
+
+### Côté équipe
+
+- Édite ton bot dans l'éditeur Monaco (Python, coloration syntaxique, sauvegarde locale automatique).
+- **Valider la syntaxe** : check rapide AST + appel `play([], [])`.
+- **Arène de test** : choisis un adversaire de référence (`tit_for_tat`, `always_defect`, `pavlov`, etc.), nombre de tours, niveau de bruit, et lance un match. Affichage des scores + historique colorisé tour par tour.
+- **Soumettre** : enregistre la version actuelle dans Firestore. Tu peux re-soumettre autant de fois que tu veux ; seule la dernière version validée est utilisée pour le tournoi officiel.
+
+L'arène de test tourne entièrement dans le navigateur via **Pyodide** (~10 s à charger la première fois). Aucune exécution serveur en Sprint 2 — le tournoi officiel sandboxé arrive en Sprint 3.
+
 ## Workflow quotidien
 
 - **Modifier le frontend** : édite les fichiers dans `docs/`, push sur `main`, GitHub Pages redéploie en ~1 min.
@@ -79,6 +99,10 @@ Va sur `https://nadegelemperiere.github.io/axelrod/`, connecte-toi avec ton comp
 ```
 /admins/{uid}                          # UIDs admin (un doc par admin)
 
+/users/{uid}                           # Mapping uid → équipe assignée (Sprint 2)
+  fields:
+    tournament_id, team_id, assigned_at
+
 /tournaments/{tournamentId}            # Tournois
   fields:
     name, nb_turns, noise_level, phase, status (open_submission|running|completed),
@@ -86,9 +110,9 @@ Va sur `https://nadegelemperiere.github.io/axelrod/`, connecte-toi avec ton comp
 
   /teams/{teamId}                      # Équipes (Sprint 2)
     fields:
-      display_name, emoji, uid_owner, bot_status, latest_bot_id
+      display_name, emoji, uid_owner, bot_status, latest_bot_id, created_at
 
-    /bots/{botId}                      # Versions de bots soumises
+    /bots/{botId}                      # Versions de bots soumises (Sprint 2)
       fields:
         code, submitted_at, validation_status, validation_message
 
@@ -108,13 +132,18 @@ Va sur `https://nadegelemperiere.github.io/axelrod/`, connecte-toi avec ton comp
 axelrod/
 ├── docs/                     # Frontend, racine GitHub Pages
 │   ├── index.html            # Page de connexion
-│   ├── admin.html            # Panneau admin
+│   ├── admin.html            # Panneau admin (tournois)
+│   ├── teams.html            # Panneau admin (équipes d'un tournoi)
+│   ├── team.html             # Page équipe (éditeur + arène + soumission)
+│   ├── sandbox.py            # Sandbox Pyodide (bots de référence + run_match)
 │   ├── css/style.css
 │   └── js/
 │       ├── firebase-config.js
 │       ├── auth.js
 │       ├── login.js
-│       └── admin.js
+│       ├── admin.js
+│       ├── teams.js
+│       └── team.js
 ├── functions/                # Cloud Functions Python (Sprint 3)
 ├── firestore.rules           # Règles de sécurité
 ├── firestore.indexes.json
@@ -127,7 +156,8 @@ axelrod/
 
 - **Lecture** : tout utilisateur signé peut lire tournois, équipes, leaderboards, matches.
 - **Écriture admin** : création/modif/suppression de tournois et équipes seulement si l'UID est dans `/admins/{uid}`.
-- **Soumission de bots** : seule l'équipe propriétaire (`uid_owner == request.auth.uid`) peut créer un nouveau bot dans sa sous-collection. Pas d'update ni delete (chaque soumission est une nouvelle version).
+- **Mapping `/users/{uid}`** : chaque utilisateur ne lit que sa propre entrée (admin lit tout). Écriture admin uniquement.
+- **Soumission de bots** : seule l'équipe propriétaire (`uid_owner == request.auth.uid` sur la team doc) peut créer un nouveau bot dans sa sous-collection. Pas d'update ni delete (chaque soumission est une nouvelle version).
 - **Matches et leaderboards** : écriture exclusivement par les Cloud Functions (Sprint 3).
 - **Aucune donnée personnelle d'élève** dans Firestore : les comptes sont créés par la prof avec des emails neutres (`team-apricot@…`), et le mapping équipe ↔ élèves reste hors-ligne.
 
