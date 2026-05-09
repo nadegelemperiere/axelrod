@@ -14,6 +14,7 @@ import {
 
 initSidebar("playground");
 
+// ---------- Starter code ----------
 const STARTER_CODES = {
   en: `"""
 Your bot for the Axelrod Tournament.
@@ -25,18 +26,9 @@ import random
 
 
 def play(my_history, opp_history):
-    # Round 0: no information yet about the opponent
     if not opp_history:
         return 'C'
-
-    # Strategy: your move.
-    # A few directions to explore (don't just copy):
-    #   - tit_for_tat          : copy the opponent's last move
-    #   - grudger              : if they ever defect, defect forever
-    #   - pavlov               : win-stay, lose-shift
-    #   - generous-tit-for-tat : forgive 10% of the time
-
-    return 'C'
+    return opp_history[-1]
 `,
   fr: `"""
 Ton bot pour le Tournoi Axelrod.
@@ -48,62 +40,65 @@ import random
 
 
 def play(my_history, opp_history):
-    # Tour 0 : aucune information sur l'adversaire
     if not opp_history:
         return 'C'
-
-    # Stratégie : à toi de jouer.
-    # Quelques pistes à explorer (sans copier directement) :
-    #   - tit_for_tat          : copie le dernier coup adverse
-    #   - grudger              : si jamais il a trahi, je trahis toujours
-    #   - pavlov               : win-stay, lose-shift
-    #   - generous-tit-for-tat : pardonne 10% du temps
-
-    return 'C'
+    return opp_history[-1]
 `
 };
 
-function getStarterCode() {
-  return STARTER_CODES[getLang()] || STARTER_CODES.en;
-}
+const ALL_OPPONENTS = [
+  "tit_for_tat",
+  "always_cooperate",
+  "always_defect",
+  "grudger",
+  "pavlov",
+  "generous_tit_for_tat",
+  "random"
+];
+
+const DEFAULT_OPPONENTS = ["always_cooperate", "always_defect", "tit_for_tat", "random", "grudger"];
 
 const els = {
   loadingBanner: document.getElementById("loading-banner"),
   noTeam: document.getElementById("no-team"),
   main: document.getElementById("main"),
-  teamHero: document.getElementById("team-hero"),
-  teamAvatar: document.getElementById("team-avatar"),
-  teamName: document.getElementById("team-name"),
-  teamKicker: document.getElementById("team-kicker"),
-  teamMeta: document.getElementById("team-meta"),
-  botStatusBadge: document.getElementById("bot-status-badge"),
+  opponentsList: document.getElementById("opponents-list"),
+  addOppBtn: document.getElementById("add-opp-btn"),
+  pickerModal: document.getElementById("picker-modal"),
+  pickerList: document.getElementById("picker-list"),
+  docsBtn: document.getElementById("docs-btn"),
+  helpBtn: document.getElementById("help-btn"),
+  docsModal: document.getElementById("docs-modal"),
+  saveIndicator: document.getElementById("save-indicator"),
   editor: document.getElementById("editor"),
   resetBtn: document.getElementById("reset-btn"),
-  validateBtn: document.getElementById("validate-btn"),
   validationMsg: document.getElementById("validation-msg"),
-  opponent: document.getElementById("opponent"),
-  arenaTurns: document.getElementById("arena-turns"),
-  arenaNoise: document.getElementById("arena-noise"),
-  arenaSeed: document.getElementById("arena-seed"),
   runBtn: document.getElementById("run-btn"),
-  arenaResult: document.getElementById("arena-result"),
-  matchAvatarYou: document.getElementById("match-avatar-you"),
+  arenaError: document.getElementById("arena-error"),
+  matchSection: document.getElementById("match-section"),
+  matchOppName: document.getElementById("match-opp-name"),
   matchAvatarOpp: document.getElementById("match-avatar-opp"),
-  oppFighterName: document.getElementById("opp-fighter-name"),
-  scoreA: document.getElementById("score-a"),
-  scoreB: document.getElementById("score-b"),
-  oppLabel: document.getElementById("opp-label"),
+  matchAvatarYou: document.getElementById("match-avatar-you"),
+  matchAxis: document.getElementById("match-axis"),
   historyA: document.getElementById("history-a"),
   historyB: document.getElementById("history-b"),
-  historyAxis: document.getElementById("history-axis"),
+  resultsScoreYou: document.getElementById("results-score-you"),
+  resultsScoreOpp: document.getElementById("results-score-opp"),
+  resultsOutcome: document.getElementById("results-outcome"),
+  resultsDuration: document.getElementById("results-duration"),
+  resultsCoopYou: document.getElementById("results-coop-you"),
+  resultsCoopOpp: document.getElementById("results-coop-opp"),
+  analysisSection: document.getElementById("analysis-section"),
   matchGraph: document.getElementById("match-graph"),
   matchStats: document.getElementById("match-stats"),
-  noiseNote: document.getElementById("noise-note"),
-  arenaError: document.getElementById("arena-error"),
+  fullAnalysisText: document.getElementById("full-analysis-text"),
+  quickAnalysisText: document.getElementById("quick-analysis-text"),
   submitBtn: document.getElementById("submit-btn"),
   submitMsg: document.getElementById("submit-msg"),
   submissions: document.getElementById("submissions")
 };
+
+const PAYOFF = { CC: [3, 3], CD: [0, 5], DC: [5, 0], DD: [1, 1] };
 
 let pyodide = null;
 let editor = null;
@@ -111,15 +106,18 @@ let context = null;
 let matchChart = null;
 let lastResult = null;
 let lastOpponent = null;
+let opponents = [];
+let selectedOpponent = null;
+let activeTab = "graph";
 
-const PAYOFF = {
-  CC: [3, 3], CD: [0, 5], DC: [5, 0], DD: [1, 1]
-};
-
+// ---------- Boot ----------
 loadTeamContext({
   onLoaded: async (ctx) => {
     context = ctx;
-    renderTeamHeader();
+    opponents = loadOpponents();
+    selectedOpponent = opponents[0] || DEFAULT_OPPONENTS[0];
+    setMatchAvatarYou(ctx.team.display_name);
+    renderOpponents();
     await initEditor();
     await refreshSubmissions();
     els.main.hidden = false;
@@ -131,42 +129,31 @@ loadTeamContext({
   }
 });
 
-function renderTeamHeader() {
-  const team = context.team;
-  const tournament = context.tournament;
-  const hue = teamHue(team.display_name);
-  els.teamHero.style.setProperty("--team-hue", hue);
-  els.teamHero.style.setProperty("--team-color", `hsl(${hue} 75% 65%)`);
-  els.teamName.textContent = team.display_name;
-  const emojiPart = team.emoji ? `${team.emoji} ` : "";
-  els.teamKicker.textContent = `${emojiPart}${t("team.kicker", { tournament: tournament.name })}`;
-  els.teamMeta.innerHTML = t("team.meta.html", {
-    phase: tournament.phase,
-    turns: tournament.nb_turns,
-    noise: (tournament.noise_level * 100).toFixed(0)
-  });
-  const url = avatarUrl(team.display_name);
-  els.teamAvatar.innerHTML = `<img src="${url}" alt="${escapeHtml(team.display_name)}" />`;
-  els.matchAvatarYou.innerHTML = `<img src="${url}" alt="" />`;
-  els.arenaTurns.value = tournament.nb_turns;
-  els.arenaNoise.value = tournament.noise_level;
-}
-
-function avatarUrl(seed) {
-  return `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(seed)}&backgroundColor=transparent`;
-}
-
-function teamHue(name) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    hash |= 0;
-  }
-  return Math.abs(hash) % 360;
+// ---------- Editor ----------
+function getStarterCode() {
+  return STARTER_CODES[getLang()] || STARTER_CODES.en;
 }
 
 function storageKey() {
   return `axelrod-code-${context.tournamentId}-${context.teamId}`;
+}
+
+function opponentsKey() {
+  return `axelrod-opponents-${context.tournamentId}-${context.teamId}`;
+}
+
+function loadOpponents() {
+  const stored = localStorage.getItem(opponentsKey());
+  if (!stored) return [...DEFAULT_OPPONENTS];
+  try {
+    const arr = JSON.parse(stored);
+    if (Array.isArray(arr) && arr.every((o) => ALL_OPPONENTS.includes(o))) return arr;
+  } catch {}
+  return [...DEFAULT_OPPONENTS];
+}
+
+function saveOpponents() {
+  localStorage.setItem(opponentsKey(), JSON.stringify(opponents));
 }
 
 async function initEditor() {
@@ -189,11 +176,24 @@ async function initEditor() {
     insertSpaces: true,
     padding: { top: 12, bottom: 12 }
   });
+  let saveTimer = null;
+  setSaveState(true);
   editor.onDidChangeModelContent(() => {
-    localStorage.setItem(storageKey(), editor.getValue());
+    setSaveState(false);
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      localStorage.setItem(storageKey(), editor.getValue());
+      setSaveState(true);
+    }, 400);
   });
 }
 
+function setSaveState(saved) {
+  els.saveIndicator.classList.toggle("unsaved", !saved);
+  els.saveIndicator.textContent = saved ? t("playground.editor.saved") : t("playground.editor.unsaved");
+}
+
+// ---------- Pyodide ----------
 async function initPyodide() {
   try {
     const { loadPyodide } = await import("https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.mjs");
@@ -230,125 +230,201 @@ function pythonRunTest(code, opponent, nbTurns, noise, seed) {
   return result;
 }
 
+function pythonAnalyze(my_h, opp_h) {
+  pyodide.globals.set("_my_h", my_h);
+  pyodide.globals.set("_opp_h", opp_h);
+  const proxy = pyodide.runPython("analyze_strategy(_my_h, _opp_h)");
+  const result = proxy.toJs({ dict_converter: Object.fromEntries });
+  proxy.destroy();
+  return result;
+}
+
+// ---------- Avatars ----------
+function avatarUrl(seed) {
+  return `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(seed)}&backgroundColor=transparent`;
+}
+
+function setMatchAvatarYou(seed) {
+  els.matchAvatarYou.src = avatarUrl(seed);
+}
+
+// ---------- Opponents list ----------
+function renderOpponents() {
+  els.opponentsList.innerHTML = "";
+  for (const opp of opponents) {
+    const li = document.createElement("li");
+    li.className = "opponent-item" + (opp === selectedOpponent ? " selected" : "");
+    li.dataset.opp = opp;
+    li.innerHTML = `
+      <img class="opp-avatar" src="${avatarUrl(opp)}" alt="" />
+      <span class="opp-name">${formatOppName(opp)}</span>
+      <button class="opp-remove" type="button" data-i18n-title="playground.opponents.remove" aria-label="remove">×</button>
+    `;
+    li.addEventListener("click", (e) => {
+      if (e.target.classList.contains("opp-remove")) return;
+      selectedOpponent = opp;
+      renderOpponents();
+    });
+    li.querySelector(".opp-remove").addEventListener("click", (e) => {
+      e.stopPropagation();
+      opponents = opponents.filter((o) => o !== opp);
+      if (selectedOpponent === opp) selectedOpponent = opponents[0] || null;
+      saveOpponents();
+      renderOpponents();
+    });
+    els.opponentsList.appendChild(li);
+  }
+}
+
+function formatOppName(opp) {
+  return opp.split("_").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+}
+
+els.addOppBtn.addEventListener("click", openPicker);
+
+function openPicker() {
+  els.pickerList.innerHTML = "";
+  const remaining = ALL_OPPONENTS.filter((o) => !opponents.includes(o));
+  if (remaining.length === 0) {
+    const li = document.createElement("li");
+    li.className = "opponent-item";
+    li.innerHTML = `<span class="opp-name muted">${t("playground.opponents.picker.empty")}</span>`;
+    els.pickerList.appendChild(li);
+  } else {
+    for (const opp of remaining) {
+      const li = document.createElement("li");
+      li.className = "opponent-item";
+      li.innerHTML = `
+        <img class="opp-avatar" src="${avatarUrl(opp)}" alt="" />
+        <span class="opp-name">${formatOppName(opp)}</span>
+      `;
+      li.addEventListener("click", () => {
+        opponents.push(opp);
+        if (!selectedOpponent) selectedOpponent = opp;
+        saveOpponents();
+        renderOpponents();
+        closeModal(els.pickerModal);
+      });
+      els.pickerList.appendChild(li);
+    }
+  }
+  openModal(els.pickerModal);
+}
+
+// ---------- Modals ----------
+els.docsBtn.addEventListener("click", () => openModal(els.docsModal));
+els.helpBtn.addEventListener("click", () => openModal(els.docsModal));
+
+function openModal(modal) {
+  modal.hidden = false;
+  modal.addEventListener("click", onModalBackdropClick);
+}
+
+function closeModal(modal) {
+  modal.hidden = true;
+  modal.removeEventListener("click", onModalBackdropClick);
+}
+
+function onModalBackdropClick(e) {
+  if (e.target === e.currentTarget || e.target.dataset.modalClose !== undefined || e.target.classList.contains("modal-close")) {
+    closeModal(e.currentTarget);
+  }
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    document.querySelectorAll(".modal-backdrop").forEach((m) => {
+      if (!m.hidden) closeModal(m);
+    });
+  }
+});
+
+// ---------- Match run ----------
 els.resetBtn.addEventListener("click", () => {
   if (!confirm(t("editor.reset.confirm"))) return;
   editor.setValue(getStarterCode());
 });
 
-els.validateBtn.addEventListener("click", () => {
-  if (!pyodide) return;
-  const code = editor.getValue();
-  const result = pythonValidate(code);
-  showValidationMsg(els.validationMsg, result);
-});
-
 els.runBtn.addEventListener("click", () => {
   if (!pyodide) return;
-  els.arenaError.hidden = true;
-  els.arenaResult.hidden = true;
-  const code = editor.getValue();
-  const opponent = els.opponent.value;
-  const nbTurns = parseInt(els.arenaTurns.value, 10) || 30;
-  const noise = parseFloat(els.arenaNoise.value) || 0;
-  const seedRaw = els.arenaSeed.value;
-  const seed = seedRaw === "" ? null : parseInt(seedRaw, 10);
-
-  const result = pythonRunTest(code, opponent, nbTurns, noise, seed);
-  if (!result.ok) {
-    els.arenaError.textContent = result.error;
+  if (!selectedOpponent) {
+    els.arenaError.textContent = "No opponent selected.";
     els.arenaError.hidden = false;
     return;
   }
-  renderArenaResult(result, opponent);
+  els.arenaError.hidden = true;
+  const code = editor.getValue();
+  const tournament = context.tournament;
+  const nbTurns = tournament.nb_turns;
+  const noise = tournament.noise_level;
+
+  const result = pythonRunTest(code, selectedOpponent, nbTurns, noise, null);
+  if (!result.ok) {
+    els.arenaError.textContent = result.error;
+    els.arenaError.hidden = false;
+    els.matchSection.hidden = true;
+    els.analysisSection.hidden = true;
+    return;
+  }
+  renderMatch(result, selectedOpponent);
 });
 
-function renderArenaResult(result, opponent) {
+function renderMatch(result, opponent) {
   lastResult = result;
   lastOpponent = opponent;
-  els.oppLabel.textContent = opponent;
-  els.oppFighterName.textContent = opponent.replace(/_/g, " ");
-  els.matchAvatarOpp.innerHTML = `<img src="${avatarUrl(opponent)}" alt="" />`;
-  renderHistoryCells(result.history_a, els.historyA);
-  renderHistoryCells(result.history_b, els.historyB);
-  renderHistoryAxis(result.history_a.length, els.historyAxis);
-  renderMatchStats(result, opponent);
-  renderMatchGraph(result.history_a, result.history_b);
-  if (result.noise_level > 0) {
-    els.noiseNote.textContent = t("arena.noise.note", { pct: (result.noise_level * 100).toFixed(0) });
-    els.noiseNote.hidden = false;
-  } else {
-    els.noiseNote.hidden = true;
-  }
-  els.arenaResult.hidden = false;
-  animateCount(els.scoreA, result.score_a);
-  animateCount(els.scoreB, result.score_b);
+  els.matchSection.hidden = false;
+  els.analysisSection.hidden = false;
+  // force layout so Chart.js sees real dimensions when initializing
+  void els.analysisSection.offsetHeight;
+
+  // Fighters
+  els.matchOppName.textContent = formatOppName(opponent).toUpperCase();
+  els.matchAvatarOpp.src = avatarUrl(opponent);
+
+  // Cells
+  renderCells(result.history_b, els.historyB);
+  renderCells(result.history_a, els.historyA);
+  renderAxis(result.history_a.length, els.matchAxis);
+
+  // Results
+  els.resultsScoreYou.textContent = result.score_a;
+  els.resultsScoreOpp.textContent = result.score_b;
+  const winner = result.score_a > result.score_b ? "win" : result.score_a < result.score_b ? "loss" : "tie";
+  const emoji = winner === "win" ? "🏆" : winner === "loss" ? "💀" : "🤝";
+  els.resultsOutcome.innerHTML = `<span style="font-size: 1.4rem;" title="${t(`arena.result.${winner}`)}">${emoji}</span>`;
+  els.resultsDuration.textContent = t("arena.stat.duration.value", { n: result.history_a.length });
+  const coopA = countChar(result.history_a, "C");
+  const coopB = countChar(result.history_b, "C");
+  els.resultsCoopYou.textContent = `${((coopA / result.history_a.length) * 100).toFixed(0)}%`;
+  els.resultsCoopOpp.textContent = `${((coopB / result.history_b.length) * 100).toFixed(0)}%`;
+
+  // Tabs content
+  renderGraph(result.history_a, result.history_b);
+  renderDetails(result);
+  renderAnalysis(result);
 }
 
-function renderHistoryCells(str, container) {
+function renderCells(str, container) {
   container.innerHTML = "";
   for (let i = 0; i < str.length; i++) {
     const c = str[i];
     const cell = document.createElement("span");
     cell.className = `cell ${c === "C" ? "c" : "d"}`;
     cell.textContent = c;
-    const moveLabel = c === "C" ? t("arena.legend.c") : t("arena.legend.d");
-    cell.title = `${i + 1} — ${moveLabel}`;
+    cell.title = `${i + 1} — ${c === "C" ? t("arena.legend.c") : t("arena.legend.d")}`;
     container.appendChild(cell);
   }
 }
 
-function renderHistoryAxis(nbTurns, container) {
+function renderAxis(nbTurns, container) {
   container.innerHTML = "";
   for (let i = 1; i <= nbTurns; i++) {
     const tick = document.createElement("span");
-    tick.className = "axis-tick";
-    tick.textContent = i % 5 === 0 ? String(i) : "";
+    tick.className = "match-axis-tick";
+    tick.style.width = "22px";
+    tick.textContent = i % 10 === 0 || i === 1 ? String(i) : "";
     container.appendChild(tick);
   }
-}
-
-function renderMatchStats(result, opponent) {
-  const ha = result.history_a;
-  const hb = result.history_b;
-  const nb = ha.length;
-  const coopA = countChar(ha, "C");
-  const coopB = countChar(hb, "C");
-  const coopAPct = ((coopA / nb) * 100).toFixed(0);
-  const coopBPct = ((coopB / nb) * 100).toFixed(0);
-  const longestA = longestRun(ha);
-  const winner = result.score_a > result.score_b ? "win"
-                  : result.score_a < result.score_b ? "loss" : "tie";
-  const winnerColor = winner === "win" ? "var(--cyan)"
-                    : winner === "loss" ? "var(--accent)" : "var(--muted)";
-  const winnerLabel = `<span style="color: ${winnerColor};">${t(`arena.result.${winner}`)}</span>`;
-  const advantage = Math.abs(result.score_a - result.score_b);
-
-  els.matchStats.innerHTML = `
-    <div class="match-stat">
-      <span class="match-stat-label">${t("arena.stat.result")}</span>
-      <span class="match-stat-value">${winnerLabel}</span>
-    </div>
-    <div class="match-stat">
-      <span class="match-stat-label">${t("arena.stat.duration")}</span>
-      <span class="match-stat-value">${t("arena.stat.duration.value", { n: nb })}</span>
-    </div>
-    <div class="match-stat">
-      <span class="match-stat-label">${t("arena.stat.cooperation")}</span>
-      <span class="match-stat-value">${coopAPct}%<span class="vs">vs</span>${coopBPct}%</span>
-    </div>
-    <div class="match-stat">
-      <span class="match-stat-label">${t("arena.stat.advantage")}</span>
-      <span class="match-stat-value">${advantage > 0 ? "+" + advantage : "0"}</span>
-    </div>
-    <div class="match-stat">
-      <span class="match-stat-label">${t("arena.stat.longestC")}</span>
-      <span class="match-stat-value">${longestA.c}</span>
-    </div>
-    <div class="match-stat">
-      <span class="match-stat-label">${t("arena.stat.longestD")}</span>
-      <span class="match-stat-value">${longestA.d}</span>
-    </div>
-  `;
 }
 
 function countChar(s, ch) {
@@ -369,8 +445,54 @@ function longestRun(s) {
   return best;
 }
 
-function renderMatchGraph(ha, hb) {
-  if (!window.Chart) return;
+// ---------- Tabs ----------
+document.querySelectorAll(".tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    activeTab = btn.dataset.tab;
+    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
+    document.querySelectorAll(".tab-content").forEach((c) => {
+      c.hidden = c.id !== `tab-${activeTab}`;
+    });
+    if (activeTab === "graph" && matchChart) matchChart.resize();
+  });
+});
+
+// ---------- Graph ----------
+let chartLoadPromise = null;
+function ensureChartLoaded() {
+  if (window.Chart) return Promise.resolve();
+  if (chartLoadPromise) return chartLoadPromise;
+  chartLoadPromise = (async () => {
+    try {
+      const mod = await import("https://cdn.jsdelivr.net/npm/chart.js@4.4.4/auto/+esm");
+      window.Chart = mod.default || mod.Chart;
+      console.log("[playground] Chart.js (ESM) loaded ✓", typeof window.Chart);
+    } catch (e) {
+      console.error("[playground] Chart.js ESM import failed, trying local UMD fallback…", e);
+      await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "vendor/chart.umd.js?v=2";
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+      console.log("[playground] Chart.js (UMD fallback) loaded ✓", typeof window.Chart);
+    }
+  })();
+  return chartLoadPromise;
+}
+
+async function renderGraph(ha, hb) {
+  try {
+    await ensureChartLoaded();
+  } catch (err) {
+    console.error("[playground] All Chart.js load attempts failed:", err);
+    return;
+  }
+  if (!window.Chart) {
+    console.error("[playground] Chart.js still not available after load attempt.");
+    return;
+  }
   const labels = ha.split("").map((_, i) => i + 1);
   const cumA = cumulativeScores(ha, hb, "a");
   const cumB = cumulativeScores(ha, hb, "b");
@@ -380,6 +502,8 @@ function renderMatchGraph(ha, hb) {
     matchChart.data.datasets[0].label = t("arena.you");
     matchChart.data.datasets[1].data = cumB;
     matchChart.data.datasets[1].label = t("arena.adversary");
+    matchChart.options.scales.x.title.text = t("playground.match.tours");
+    matchChart.options.scales.y.title.text = t("playground.results.score");
     matchChart.update();
     return;
   }
@@ -392,7 +516,7 @@ function renderMatchGraph(ha, hb) {
           label: t("arena.you"),
           data: cumA,
           borderColor: "#5fe3d8",
-          backgroundColor: "rgba(95, 227, 216, 0.12)",
+          backgroundColor: "rgba(95, 227, 216, 0.1)",
           borderWidth: 2,
           tension: 0.25,
           pointRadius: 0,
@@ -402,7 +526,7 @@ function renderMatchGraph(ha, hb) {
           label: t("arena.adversary"),
           data: cumB,
           borderColor: "#ff6b35",
-          backgroundColor: "rgba(255, 107, 53, 0.1)",
+          backgroundColor: "rgba(255, 107, 53, 0.08)",
           borderWidth: 2,
           tension: 0.25,
           pointRadius: 0,
@@ -415,17 +539,62 @@ function renderMatchGraph(ha, hb) {
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
       scales: {
-        x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#7d96a0", font: { size: 10 } } },
-        y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#7d96a0", font: { size: 10 } }, beginAtZero: true }
+        x: {
+          title: {
+            display: true,
+            text: t("playground.match.tours"),
+            color: "#7d96a0",
+            font: { family: "JetBrains Mono", size: 10, weight: "600" },
+            padding: { top: 4 }
+          },
+          grid: { color: "rgba(255,255,255,0.04)" },
+          ticks: {
+            color: "#7d96a0",
+            font: { family: "JetBrains Mono", size: 10 },
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 12
+          }
+        },
+        y: {
+          title: {
+            display: true,
+            text: t("playground.results.score"),
+            color: "#5fe3d8",
+            font: { family: "JetBrains Mono", size: 10, weight: "700" },
+            padding: { bottom: 6 }
+          },
+          grid: { color: "rgba(255,255,255,0.04)" },
+          ticks: { color: "#7d96a0", font: { family: "JetBrains Mono", size: 10 } },
+          beginAtZero: true
+        }
       },
       plugins: {
-        legend: { labels: { color: "#c5d4d9", font: { size: 11 }, usePointStyle: true } },
+        legend: {
+          position: "right",
+          align: "center",
+          labels: {
+            color: "#c5d4d9",
+            font: { family: "Space Grotesk", size: 12 },
+            usePointStyle: true,
+            pointStyle: "circle",
+            padding: 14,
+            boxHeight: 8
+          }
+        },
         tooltip: {
           backgroundColor: "#0c1a1f",
           titleColor: "#fff",
+          titleFont: { family: "Space Grotesk", size: 12, weight: "700" },
           bodyColor: "#c5d4d9",
+          bodyFont: { family: "JetBrains Mono", size: 11 },
           borderColor: "#1d3a3f",
-          borderWidth: 1
+          borderWidth: 1,
+          padding: 10,
+          callbacks: {
+            title: (items) => `${t("playground.match.tours")} ${items[0].label}`,
+            label: (item) => ` ${item.dataset.label} : ${item.formattedValue}`
+          }
         }
       }
     }
@@ -444,30 +613,50 @@ function cumulativeScores(ha, hb, who) {
   return out;
 }
 
-function animateCount(el, target, duration = 600) {
-  const current = parseFloat(el.textContent);
-  const start = isNaN(current) ? 0 : current;
-  if (start === target) {
-    el.textContent = String(target);
-    return;
-  }
-  const startTime = performance.now();
-  function step(now) {
-    const tt = Math.min((now - startTime) / duration, 1);
-    const eased = 1 - Math.pow(1 - tt, 3);
-    el.textContent = String(Math.round(start + (target - start) * eased));
-    if (tt < 1) requestAnimationFrame(step);
-  }
-  requestAnimationFrame(step);
+// ---------- Details ----------
+function renderDetails(result) {
+  const ha = result.history_a;
+  const hb = result.history_b;
+  const nb = ha.length;
+  const longest = longestRun(ha);
+  const advantage = Math.abs(result.score_a - result.score_b);
+
+  els.matchStats.innerHTML = `
+    <div class="match-stat">
+      <span class="match-stat-label">${t("arena.stat.duration")}</span>
+      <span class="match-stat-value">${t("arena.stat.duration.value", { n: nb })}</span>
+    </div>
+    <div class="match-stat">
+      <span class="match-stat-label">${t("arena.stat.advantage")}</span>
+      <span class="match-stat-value">${advantage > 0 ? "+" + advantage : "0"}</span>
+    </div>
+    <div class="match-stat">
+      <span class="match-stat-label">${t("arena.stat.longestC")}</span>
+      <span class="match-stat-value">${longest.c}</span>
+    </div>
+    <div class="match-stat">
+      <span class="match-stat-label">${t("arena.stat.longestD")}</span>
+      <span class="match-stat-value">${longest.d}</span>
+    </div>
+  `;
 }
 
-function showValidationMsg(el, result, prefix = "") {
-  el.hidden = false;
-  el.classList.remove("ok", "ko");
-  el.classList.add(result.ok ? "ok" : "ko");
-  el.textContent = (prefix ? prefix + " " : "") + result.message;
+// ---------- Analysis ----------
+function renderAnalysis(result) {
+  const analysis = pythonAnalyze(result.history_a, result.history_b);
+  const profile = analysis.profile;
+  let text;
+  if (profile === "no_data") {
+    text = t("playground.analysis.no_data");
+  } else {
+    text = t(`playground.analysis.profile.${profile}`);
+  }
+  els.quickAnalysisText.textContent = text;
+  els.quickAnalysisText.classList.remove("placeholder");
+  els.fullAnalysisText.textContent = text;
 }
 
+// ---------- Submit ----------
 els.submitBtn.addEventListener("click", async () => {
   if (!pyodide) return;
   els.submitMsg.hidden = true;
@@ -497,6 +686,13 @@ els.submitBtn.addEventListener("click", async () => {
   }
 });
 
+function showValidationMsg(el, result, prefix = "") {
+  el.hidden = false;
+  el.classList.remove("ok", "ko");
+  el.classList.add(result.ok ? "ok" : "ko");
+  el.textContent = (prefix ? prefix + " " : "") + result.message;
+}
+
 async function refreshSubmissions() {
   const ref = collection(db, "tournaments", context.tournamentId, "teams", context.teamId, "bots");
   const q = query(ref, orderBy("submitted_at", "desc"), limit(5));
@@ -507,15 +703,11 @@ async function refreshSubmissions() {
     li.className = "empty";
     li.textContent = t("submit.history.empty");
     els.submissions.appendChild(li);
-    els.botStatusBadge.textContent = t("team.bot.none");
-    els.botStatusBadge.className = "badge";
     return;
   }
-  let validCount = 0;
   const localeForDates = document.documentElement.lang === "fr" ? "fr-FR" : "en-GB";
   snap.forEach((d) => {
     const data = d.data();
-    if (data.validation_status === "ok") validCount++;
     const li = document.createElement("li");
     const ts = data.submitted_at?.toDate?.() ?? null;
     const tsStr = ts ? ts.toLocaleString(localeForDates) : t("submit.pending");
@@ -530,28 +722,13 @@ async function refreshSubmissions() {
     `;
     els.submissions.appendChild(li);
   });
-  if (validCount > 0) {
-    const key = validCount > 1 ? "team.bot.valid.many" : "team.bot.valid.one";
-    els.botStatusBadge.textContent = t(key, { n: validCount });
-    els.botStatusBadge.className = "badge ok";
-  } else {
-    els.botStatusBadge.textContent = t("team.bot.invalid");
-    els.botStatusBadge.className = "badge ko";
-  }
 }
 
+// ---------- Lang change ----------
 document.addEventListener("langchange", () => {
-  if (context) renderTeamHeader();
+  setSaveState(!els.saveIndicator.classList.contains("unsaved"));
   if (lastResult && lastOpponent) {
-    renderMatchStats(lastResult, lastOpponent);
-    if (lastResult.noise_level > 0) {
-      els.noiseNote.textContent = t("arena.noise.note", { pct: (lastResult.noise_level * 100).toFixed(0) });
-    }
-    if (matchChart) {
-      matchChart.data.datasets[0].label = t("arena.you");
-      matchChart.data.datasets[1].label = t("arena.adversary");
-      matchChart.update();
-    }
+    renderMatch(lastResult, lastOpponent);
   }
   if (context) refreshSubmissions();
 });

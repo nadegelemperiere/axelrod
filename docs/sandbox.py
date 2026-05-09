@@ -194,6 +194,91 @@ def run_match(play_a, play_b, nb_turns=30, noise_level=0.0):
     }
 
 
+def analyze_strategy(my_history, opp_history):
+    """Heuristic analysis of the user's strategy.
+
+    Returns a dict with:
+      - profile: a string key matching one of the i18n profile entries
+        (cooperative, aggressive, tit_for_tat, vengeful, forgiving, pavlov, mixed, erratic)
+      - stats: dict of useful metrics (coop_rate, reactivity, forgiveness,
+        retaliation, win_stay, lose_shift, opening, run_length_avg)
+    """
+    nb = len(my_history)
+    if nb < 5:
+        return {'profile': 'no_data', 'stats': {}}
+
+    coop = my_history.count('C')
+    coop_rate = coop / nb
+
+    # Reactivity: I copied opponent's previous move
+    react_hits = sum(1 for i in range(1, nb) if my_history[i] == opp_history[i - 1])
+    reactivity = react_hits / max(1, nb - 1)
+
+    # Forgiveness: I cooperate after the opponent defected
+    forgive_chances = sum(1 for i in range(1, nb) if opp_history[i - 1] == 'D')
+    forgive_hits = sum(1 for i in range(1, nb) if opp_history[i - 1] == 'D' and my_history[i] == 'C')
+    forgiveness = forgive_hits / max(1, forgive_chances)
+
+    # Retaliation: I defected after opponent defected
+    retaliate_hits = sum(1 for i in range(1, nb) if opp_history[i - 1] == 'D' and my_history[i] == 'D')
+    retaliation = retaliate_hits / max(1, forgive_chances)
+
+    # Pavlov detection: win-stay (CC, DC) → same move; lose-shift (CD, DD) → switch
+    pavlov_hits = 0
+    pavlov_total = 0
+    for i in range(1, nb):
+        last_me = my_history[i - 1]
+        last_opp = opp_history[i - 1]
+        won = (last_me == 'C' and last_opp == 'C') or (last_me == 'D' and last_opp == 'C')
+        expected = last_me if won else ('D' if last_me == 'C' else 'C')
+        if my_history[i] == expected:
+            pavlov_hits += 1
+        pavlov_total += 1
+    pavlov_score = pavlov_hits / max(1, pavlov_total)
+
+    # Tit-for-tat detection: I exactly copy opponent's previous move
+    tft_score = reactivity  # same metric, but we'll require high score
+
+    # Erratic: many short runs in my sequence
+    runs = 1
+    for i in range(1, nb):
+        if my_history[i] != my_history[i - 1]:
+            runs += 1
+    avg_run = nb / runs
+
+    opening = my_history[0]
+
+    stats = {
+        'coop_rate': round(coop_rate, 3),
+        'reactivity': round(reactivity, 3),
+        'forgiveness': round(forgiveness, 3),
+        'retaliation': round(retaliation, 3),
+        'pavlov_score': round(pavlov_score, 3),
+        'avg_run': round(avg_run, 2),
+        'opening': opening,
+    }
+
+    # Profile classification — order matters (most specific first)
+    if tft_score >= 0.85 and 0.2 <= coop_rate <= 0.8:
+        profile = 'tit_for_tat'
+    elif pavlov_score >= 0.85 and 0.2 <= coop_rate <= 0.8:
+        profile = 'pavlov'
+    elif coop_rate >= 0.85:
+        profile = 'cooperative'
+    elif coop_rate <= 0.2:
+        profile = 'aggressive'
+    elif forgive_chances >= 3 and forgiveness <= 0.15 and retaliation >= 0.6:
+        profile = 'vengeful'
+    elif forgive_chances >= 3 and forgiveness >= 0.55:
+        profile = 'forgiving'
+    elif avg_run < 1.6:
+        profile = 'erratic'
+    else:
+        profile = 'mixed'
+
+    return {'profile': profile, 'stats': stats}
+
+
 def run_test(code, opponent_name, nb_turns=30, noise_level=0.0, seed=None):
     """Validates user code then plays a match against a reference bot.
 

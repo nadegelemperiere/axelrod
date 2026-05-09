@@ -101,10 +101,19 @@
 
     <div class="content">
 
-      <div class="content-header">
+      <div class="content-header playground-header">
         <div>
-          <h1 data-i18n="playground.title">Playground</h1>
-          <p class="lede" data-i18n="playground.subtitle">Code · test · submit your strategy.</p>
+          <h1 data-i18n="playground.title">PLAYGROUND</h1>
+          <p class="lede" data-i18n="playground.subtitle">Test, iterate, perfect.</p>
+        </div>
+        <div class="content-header-actions">
+          <select class="mode-select" disabled>
+            <option data-i18n="playground.mode">Mode: Code</option>
+          </select>
+          <button class="header-btn" id="docs-btn" type="button">
+            <span>📄</span> <span data-i18n="playground.docs">Docs</span>
+          </button>
+          <button class="header-btn icon-only" id="help-btn" type="button" data-i18n-title="playground.help" title="Help">?</button>
         </div>
       </div>
 
@@ -118,122 +127,151 @@
       </p>
 
       <main id="main" hidden>
-        <section class="team-hero" id="team-hero">
-          <div class="team-hero-avatar" id="team-avatar"></div>
-          <div class="team-hero-text">
-            <p class="team-hero-kicker" id="team-kicker"></p>
-            <h1 class="team-hero-name" id="team-name"></h1>
-            <p class="team-hero-meta" id="team-meta"></p>
+
+        <!-- 3-column top : opponents | editor | reminder -->
+        <section class="playground-top">
+
+          <div class="playground-card opponents-card">
+            <div class="pg-card-head">
+              <h3 class="pg-card-title" data-i18n="playground.opponents.title">Opponents</h3>
+              <button class="btn-add" id="add-opp-btn" type="button" data-i18n="playground.opponents.add">+ Add</button>
+            </div>
+            <ul class="opponents-list" id="opponents-list"></ul>
           </div>
-          <div class="team-hero-status">
-            <span class="badge" id="bot-status-badge" data-i18n="team.bot.none">no bot yet</span>
+
+          <div class="playground-card editor-card">
+            <div class="editor-tabs">
+              <div class="editor-tab">
+                <span data-i18n="playground.editor.tab">my_strategy.py</span>
+              </div>
+              <span id="save-indicator" class="editor-save-state" data-i18n="playground.editor.saved">Saved</span>
+            </div>
+            <div id="editor" class="editor"></div>
+            <p id="validation-msg" class="validation-msg" hidden></p>
           </div>
+
+          <div class="playground-card reminder-card">
+            <div class="pg-card-head">
+              <h3 class="pg-card-title" data-i18n="playground.reminder.title">Reminder</h3>
+            </div>
+            <div class="reminder-list">
+              <div><span class="reminder-c">C</span> <span data-i18n="playground.reminder.c">= cooperate</span></div>
+              <div><span class="reminder-d">D</span> <span data-i18n="playground.reminder.d">= defect</span></div>
+              <div data-i18n="playground.reminder.signature">Expected signature:</div>
+              <div class="mono-block">play(my_history, opp_history)</div>
+              <div data-i18n="playground.reminder.returns">Returns C or D</div>
+            </div>
+          </div>
+
         </section>
 
-        <section class="card">
-          <div class="section-head">
-            <h2 data-i18n="editor.title">Your bot's code</h2>
-            <div class="section-actions">
-              <button id="reset-btn" type="button" class="ghost" data-i18n="editor.reset">Reset to template</button>
-              <button id="validate-btn" type="button" class="ghost" data-i18n="editor.validate">Validate syntax</button>
+        <!-- Action buttons -->
+        <div class="match-actions">
+          <button id="run-btn" class="btn-launch" type="button" disabled data-i18n="playground.run">▶ Run match</button>
+          <button id="reset-btn" class="btn-reset" type="button" data-i18n="playground.reset">Reset</button>
+        </div>
+
+        <p id="arena-error" class="error" hidden></p>
+
+        <!-- Match results -->
+        <section id="match-section" class="match-section" hidden>
+
+          <div class="match-card-pg">
+            <div class="match-fighters">
+              <div class="fighter opp">
+                <img src="" alt="" id="match-avatar-opp" class="fighter-avatar" />
+                <span id="match-opp-name">OPPONENT</span>
+              </div>
+              <span class="vs">vs</span>
+              <div class="fighter you">
+                <span data-i18n="playground.match.you">YOUR STRATEGY</span>
+                <img src="" alt="" id="match-avatar-you" class="fighter-avatar" />
+              </div>
+            </div>
+
+            <div>
+              <div class="match-row">
+                <span class="match-row-label" data-i18n="playground.match.tours">Rounds</span>
+                <div class="match-axis" id="match-axis"></div>
+              </div>
+              <div class="match-row">
+                <span class="match-row-label" data-i18n="playground.match.row.opp">Opponent</span>
+                <div class="match-cells" id="history-b"></div>
+              </div>
+              <div class="match-row">
+                <span class="match-row-label" data-i18n="playground.match.row.you">You</span>
+                <div class="match-cells" id="history-a"></div>
+              </div>
+            </div>
+
+            <div class="match-legend">
+              <span class="match-legend-item"><span class="cell c"></span> <span data-i18n="arena.legend.c">Cooperates</span></span>
+              <span class="match-legend-item"><span class="cell d"></span> <span data-i18n="arena.legend.d">Defects</span></span>
             </div>
           </div>
-          <div id="editor" class="editor"></div>
-          <p id="validation-msg" class="validation-msg" hidden></p>
+
+          <div class="results-card">
+            <div class="pg-card-head">
+              <h3 class="pg-card-title" data-i18n="playground.results.title">Results</h3>
+            </div>
+            <div class="results-row">
+              <span class="results-row-label" data-i18n="playground.results.score">Score</span>
+              <span class="results-row-value">
+                <span class="you-val" id="results-score-you">—</span>
+                <span class="vs">vs</span>
+                <span class="opp-val" id="results-score-opp">—</span>
+              </span>
+            </div>
+            <div class="results-row">
+              <span class="results-row-label" data-i18n="playground.results.outcome">Outcome</span>
+              <span class="results-row-value" id="results-outcome">—</span>
+            </div>
+            <div class="results-row">
+              <span class="results-row-label" data-i18n="playground.results.duration">Duration</span>
+              <span class="results-row-value" id="results-duration">—</span>
+            </div>
+            <div class="results-row">
+              <span class="results-row-label" data-i18n="playground.results.cooperation">Cooperation</span>
+              <span class="results-row-value">
+                <span class="you-val" id="results-coop-you">—</span>
+                <span class="vs">vs</span>
+                <span class="opp-val" id="results-coop-opp">—</span>
+              </span>
+            </div>
+          </div>
+
         </section>
 
-        <section class="card arena-card">
-          <div class="section-head">
-            <h2 data-i18n="arena.title">Training arena</h2>
-          </div>
-          <p class="muted small" style="margin-top: -0.5rem;" data-i18n="arena.subtitle">
-            Test your bot against reference strategies before submitting. Replay as much as you want — nothing is saved.
-          </p>
-          <div class="arena-form">
-            <label>
-              <span data-i18n="arena.opponent">Opponent</span>
-              <select id="opponent">
-                <option value="tit_for_tat">tit_for_tat — copies the last move</option>
-                <option value="always_cooperate">always_cooperate — always cooperates</option>
-                <option value="always_defect">always_defect — always defects</option>
-                <option value="grudger">grudger — eternal grudge after first defection</option>
-                <option value="pavlov">pavlov — win-stay, lose-shift</option>
-                <option value="generous_tit_for_tat">generous_tit_for_tat — forgives 10%</option>
-                <option value="random">random — random move</option>
-              </select>
-            </label>
-            <label>
-              <span data-i18n="arena.turns">Rounds</span>
-              <input type="number" id="arena-turns" value="30" min="5" max="200">
-            </label>
-            <label>
-              <span data-i18n="arena.noise">Noise</span>
-              <input type="number" id="arena-noise" value="0" step="0.05" min="0" max="0.5">
-            </label>
-            <label>
-              <span data-i18n="arena.seed">Seed</span>
-              <input type="number" id="arena-seed" data-i18n-placeholder="arena.seed.placeholder" placeholder="random">
-            </label>
-            <button id="run-btn" type="button" disabled data-i18n="arena.run">▶ Fight</button>
+        <!-- Bottom tabs + analysis -->
+        <section id="analysis-section" class="analysis-section" hidden>
+
+          <div class="tabs-card">
+            <div class="tabs-header">
+              <button class="tab-btn active" data-tab="graph" type="button" data-i18n="playground.tabs.graph">Score graph</button>
+              <button class="tab-btn" data-tab="details" type="button" data-i18n="playground.tabs.details">Details</button>
+              <button class="tab-btn" data-tab="analysis" type="button" data-i18n="playground.tabs.analysis">Analysis</button>
+            </div>
+            <div class="tab-content" id="tab-graph">
+              <div class="match-graph-wrap"><canvas id="match-graph"></canvas></div>
+            </div>
+            <div class="tab-content" id="tab-details" hidden>
+              <div class="match-stats" id="match-stats"></div>
+            </div>
+            <div class="tab-content" id="tab-analysis" hidden>
+              <p class="quick-analysis-text" id="full-analysis-text"></p>
+            </div>
           </div>
 
-          <div id="arena-result" class="arena-result" hidden>
-            <div class="match-header">
-              <div class="match-fighter you">
-                <div class="match-avatar you" id="match-avatar-you"></div>
-                <div class="match-fighter-name" data-i18n="arena.you">You</div>
-              </div>
-              <div class="match-vs" data-i18n="arena.vs">VS</div>
-              <div class="match-fighter opp">
-                <div class="match-avatar them" id="match-avatar-opp"></div>
-                <div class="match-fighter-name" id="opp-fighter-name">Opponent</div>
-              </div>
+          <div class="quick-analysis-card">
+            <div class="pg-card-head">
+              <h3 class="pg-card-title" data-i18n="playground.analysis.title">Quick analysis</h3>
             </div>
-
-            <div class="arena-scores">
-              <div class="score-block you">
-                <div class="score-label" data-i18n="arena.you">You</div>
-                <div class="score-value" id="score-a">—</div>
-              </div>
-              <div class="score-vs" data-i18n="arena.vs">VS</div>
-              <div class="score-block opp">
-                <div class="score-label" id="opp-label" data-i18n="arena.adversary">opponent</div>
-                <div class="score-value" id="score-b">—</div>
-              </div>
-            </div>
-
-            <div class="history-block">
-              <div class="history-row">
-                <span class="history-label" data-i18n="arena.you">You</span>
-                <div class="history-cells" id="history-a"></div>
-              </div>
-              <div class="history-row">
-                <span class="history-label" data-i18n="arena.adversary">Opp</span>
-                <div class="history-cells" id="history-b"></div>
-              </div>
-              <div class="history-row">
-                <span class="history-label"></span>
-                <div class="history-axis" id="history-axis"></div>
-              </div>
-              <div class="history-legend">
-                <span><span class="cell c"></span> <span data-i18n="arena.legend.c">Cooperates</span></span>
-                <span><span class="cell d"></span> <span data-i18n="arena.legend.d">Defects</span></span>
-              </div>
-            </div>
-
-            <div class="match-graph-wrap">
-              <canvas id="match-graph"></canvas>
-            </div>
-
-            <h3 class="subhead" data-i18n="arena.details.title">Match details</h3>
-            <div class="match-stats" id="match-stats"></div>
-
-            <p class="muted small" id="noise-note" hidden></p>
+            <p id="quick-analysis-text" class="quick-analysis-text placeholder" data-i18n="playground.analysis.placeholder">Run a match to get a quick read on your strategy.</p>
           </div>
 
-          <p id="arena-error" class="error" hidden></p>
         </section>
 
+        <!-- Submit (existing functionality) -->
         <section class="card">
           <div class="section-head">
             <h2 data-i18n="submit.title">Submit for the tournament</h2>
@@ -249,11 +287,57 @@
         </section>
       </main>
 
+      <!-- Modals -->
+      <div id="docs-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true">
+          <div class="modal-head">
+            <h2 data-i18n="playground.docs.title">Documentation</h2>
+            <button class="modal-close" type="button" data-modal-close>×</button>
+          </div>
+          <div class="modal-section">
+            <h3 data-i18n="playground.docs.section.signature">Function signature</h3>
+            <div class="mono-block">def play(my_history, opp_history):
+    # returns 'C' or 'D'
+    ...</div>
+          </div>
+          <div class="modal-section">
+            <h3 data-i18n="playground.docs.section.payoff">Payoff matrix</h3>
+            <div class="payoff-grid">
+              <div data-i18n="playground.docs.payoff.cc">Both cooperate → 3 / 3</div>
+              <div data-i18n="playground.docs.payoff.cd">You cooperate, they defect → 0 / 5</div>
+              <div data-i18n="playground.docs.payoff.dc">You defect, they cooperate → 5 / 0</div>
+              <div data-i18n="playground.docs.payoff.dd">Both defect → 1 / 1</div>
+            </div>
+          </div>
+          <div class="modal-section">
+            <h3 data-i18n="playground.docs.section.bots">Reference bots</h3>
+            <ul class="bot-list">
+              <li><strong>tit_for_tat</strong> — <span data-i18n="playground.docs.bot.tit_for_tat">copies the opponent's last move.</span></li>
+              <li><strong>always_cooperate</strong> — <span data-i18n="playground.docs.bot.always_cooperate">always plays C.</span></li>
+              <li><strong>always_defect</strong> — <span data-i18n="playground.docs.bot.always_defect">always plays D.</span></li>
+              <li><strong>grudger</strong> — <span data-i18n="playground.docs.bot.grudger">cooperates until first defection, then defects forever.</span></li>
+              <li><strong>pavlov</strong> — <span data-i18n="playground.docs.bot.pavlov">win-stay, lose-shift.</span></li>
+              <li><strong>generous_tit_for_tat</strong> — <span data-i18n="playground.docs.bot.generous_tit_for_tat">TFT with 10% forgiveness.</span></li>
+              <li><strong>random</strong> — <span data-i18n="playground.docs.bot.random">flips a coin every round.</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div id="picker-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true">
+          <div class="modal-head">
+            <h2 data-i18n="playground.opponents.picker.title">Add an opponent</h2>
+            <button class="modal-close" type="button" data-modal-close>×</button>
+          </div>
+          <ul class="opponents-picker-list" id="picker-list"></ul>
+        </div>
+      </div>
+
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs/loader.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module" src="js/i18n.js"></script>
   <script type="module" src="js/playground.js"></script>
 </body>
