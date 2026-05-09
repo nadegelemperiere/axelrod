@@ -1,4 +1,6 @@
-import { onAuth, logout, isUserAdmin } from "./auth.js";
+import { onAuth, isUserAdmin } from "./auth.js";
+import { initSidebar } from "./sidebar.js";
+import { t } from "./i18n.js";
 import { db } from "./firebase-config.js";
 import {
   doc,
@@ -13,9 +15,9 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
+initSidebar("admin-tournaments");
+
 const els = {
-  userEmail: document.getElementById("user-email"),
-  logoutBtn: document.getElementById("logout-btn"),
   accessDenied: document.getElementById("access-denied"),
   main: document.getElementById("main"),
   tTitle: document.getElementById("t-title"),
@@ -32,7 +34,7 @@ const params = new URLSearchParams(window.location.search);
 const tournamentId = params.get("t");
 
 if (!tournamentId) {
-  alert("Paramètre 't' (tournament id) manquant dans l'URL.");
+  alert(t("teams.alert.no.tid"));
   window.location.href = "admin.html";
 }
 
@@ -46,25 +48,30 @@ onAuth(async (user) => {
     els.accessDenied.hidden = false;
     return;
   }
-  els.userEmail.textContent = user.email;
-
   const tSnap = await getDoc(doc(db, "tournaments", tournamentId));
   if (!tSnap.exists()) {
-    alert("Tournoi introuvable.");
+    alert(t("teams.alert.not.found"));
     window.location.href = "admin.html";
     return;
   }
-  const t = tSnap.data();
-  els.tTitle.textContent = t.name;
-  els.tMeta.textContent = `phase ${t.phase} · ${t.nb_turns} tours · bruit ${(t.noise_level * 100).toFixed(0)}% · statut ${t.status}`;
+  tournamentData = tSnap.data();
+  renderTournamentHeader();
   els.main.hidden = false;
   await refreshTeams();
 });
 
-els.logoutBtn.addEventListener("click", async () => {
-  await logout();
-  window.location.href = "index.html";
-});
+let tournamentData = null;
+
+function renderTournamentHeader() {
+  if (!tournamentData) return;
+  els.tTitle.textContent = tournamentData.name;
+  els.tMeta.textContent = t("teams.meta", {
+    phase: tournamentData.phase,
+    turns: tournamentData.nb_turns,
+    noise: (tournamentData.noise_level * 100).toFixed(0),
+    status: t(`admin.status.${tournamentData.status}`)
+  });
+}
 
 els.addForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -79,7 +86,10 @@ els.addForm.addEventListener("submit", async (e) => {
     const existing = await getDoc(doc(db, "users", uid_owner));
     if (existing.exists()) {
       const existingData = existing.data();
-      showMsg(els.addMsg, false, `Cet UID est déjà assigné à l'équipe ${existingData.team_id} du tournoi ${existingData.tournament_id}.`);
+      showMsg(els.addMsg, false, t("teams.add.uid.exists", {
+        team: existingData.team_id,
+        tournament: existingData.tournament_id
+      }));
       return;
     }
 
@@ -100,12 +110,12 @@ els.addForm.addEventListener("submit", async (e) => {
       assigned_at: serverTimestamp()
     });
 
-    showMsg(els.addMsg, true, `Équipe "${display_name}" ajoutée.`);
+    showMsg(els.addMsg, true, t("teams.add.success", { name: display_name }));
     els.addForm.reset();
     await refreshTeams();
   } catch (err) {
     console.error(err);
-    showMsg(els.addMsg, false, `Erreur: ${err.message || err}`);
+    showMsg(els.addMsg, false, t("teams.add.error", { msg: err.message || err }));
   }
 });
 
@@ -117,7 +127,7 @@ async function refreshTeams() {
   if (snap.empty) {
     const li = document.createElement("li");
     li.className = "empty";
-    li.textContent = "Aucune équipe pour ce tournoi.";
+    li.textContent = t("teams.list.empty");
     els.teamsList.appendChild(li);
     return;
   }
@@ -143,16 +153,20 @@ async function refreshTeams() {
     const li = document.createElement("li");
     li.className = "team-row";
     li.style.setProperty("--team-color", `hsl(${hue} 75% 65%)`);
+    const avatarUrl = `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(team.display_name)}&backgroundColor=transparent`;
     const emoji = team.emoji ? `<span class="team-emoji">${escapeHtml(team.emoji)}</span>` : "";
     const botInfo = c.total === 0
-      ? '<span class="badge">aucun bot</span>'
-      : `<span class="badge ${c.valid > 0 ? "ok" : "ko"}">${c.valid}/${c.total} valide${c.valid > 1 ? "s" : ""}</span>`;
+      ? `<span class="badge">${t("teams.bot.none")}</span>`
+      : `<span class="badge ${c.valid > 0 ? "ok" : "ko"}">${t("teams.bot.count", { valid: c.valid, total: c.total })}</span>`;
     li.innerHTML = `
       <div class="t-row">
+        <div class="team-avatar-mini" style="border-color: hsl(${hue} 75% 65%);">
+          <img src="${avatarUrl}" alt="" loading="lazy" />
+        </div>
         ${emoji}<strong>${escapeHtml(team.display_name)}</strong>
         ${botInfo}
         <span class="meta uid">${escapeHtml(team.uid_owner)}</span>
-        <button data-id="${team.id}" data-uid="${escapeHtml(team.uid_owner)}" class="del-btn" type="button">Supprimer</button>
+        <button data-id="${team.id}" data-uid="${escapeHtml(team.uid_owner)}" class="del-btn" type="button">${t("admin.delete")}</button>
       </div>
     `;
     els.teamsList.appendChild(li);
@@ -160,7 +174,7 @@ async function refreshTeams() {
 
   els.teamsList.querySelectorAll(".del-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      if (!confirm("Supprimer cette équipe ? Les bots soumis seront orphelins (cleanup automatique en Sprint 3).")) return;
+      if (!confirm(t("teams.delete.confirm"))) return;
       const teamId = btn.dataset.id;
       const uid = btn.dataset.uid;
       await deleteDoc(doc(db, "tournaments", tournamentId, "teams", teamId));
@@ -169,6 +183,13 @@ async function refreshTeams() {
     });
   });
 }
+
+document.addEventListener("langchange", () => {
+  if (!els.main.hidden) {
+    renderTournamentHeader();
+    refreshTeams();
+  }
+});
 
 function showMsg(el, ok, message) {
   el.hidden = false;

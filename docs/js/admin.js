@@ -1,4 +1,6 @@
-import { onAuth, logout, isUserAdmin } from "./auth.js";
+import { onAuth, isUserAdmin } from "./auth.js";
+import { initSidebar } from "./sidebar.js";
+import { t } from "./i18n.js";
 import { db } from "./firebase-config.js";
 import {
   collection,
@@ -11,8 +13,8 @@ import {
   deleteDoc
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
-const userEmailEl = document.getElementById("user-email");
-const logoutBtn = document.getElementById("logout-btn");
+initSidebar("admin-tournaments");
+
 const createForm = document.getElementById("create-form");
 const tList = document.getElementById("t-list");
 const main = document.getElementById("main");
@@ -29,14 +31,8 @@ onAuth(async (user) => {
     accessDenied.hidden = false;
     return;
   }
-  userEmailEl.textContent = user.email;
   main.hidden = false;
   await refreshTournaments();
-});
-
-logoutBtn.addEventListener("click", async () => {
-  await logout();
-  window.location.href = "index.html";
 });
 
 createForm.addEventListener("submit", async (e) => {
@@ -66,31 +62,63 @@ async function refreshTournaments() {
   if (snap.empty) {
     const li = document.createElement("li");
     li.className = "empty";
-    li.textContent = "Aucun tournoi pour le moment.";
+    li.textContent = t("admin.list.empty");
     tList.appendChild(li);
     return;
   }
   snap.forEach((d) => {
-    const t = d.data();
+    const data = d.data();
+    const hue = hashHue(d.id);
+    const statusBadge = data.status === "running" ? "live" : (data.status === "completed" ? "ok" : "");
+    const statusLabel = t(`admin.status.${data.status}`);
+    const meta = t("admin.tournament.meta", {
+      phase: data.phase,
+      turns: data.nb_turns,
+      noise: (data.noise_level * 100).toFixed(0)
+    });
     const li = document.createElement("li");
     li.innerHTML = `
       <div class="t-row">
-        <strong>${escapeHtml(t.name)}</strong>
-        <span class="badge">${escapeHtml(t.status)}</span>
-        <span class="meta">phase ${t.phase} · ${t.nb_turns} tours · bruit ${(t.noise_level * 100).toFixed(0)}%</span>
-        <a href="teams.html?t=${encodeURIComponent(d.id)}" class="link-btn">Équipes →</a>
-        <button data-id="${d.id}" class="del-btn" type="button">Supprimer</button>
+        <span class="hex-icon" style="--team-color: hsl(${hue} 75% 60%)">${hexIconSvg(hue)}</span>
+        <div style="display: flex; flex-direction: column; gap: 0.15rem; min-width: 0;">
+          <strong>${escapeHtml(data.name)}</strong>
+          <span class="meta">${escapeHtml(meta)}</span>
+        </div>
+        <span class="badge ${statusBadge}">${escapeHtml(statusLabel)}</span>
+        <a href="teams.html?t=${encodeURIComponent(d.id)}" class="link-btn">${t("admin.teams")}</a>
+        <button data-id="${d.id}" class="del-btn" type="button">${t("admin.delete")}</button>
       </div>
     `;
     tList.appendChild(li);
   });
   tList.querySelectorAll(".del-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      if (!confirm("Supprimer ce tournoi définitivement ?")) return;
+      if (!confirm(t("admin.delete.confirm"))) return;
       await deleteDoc(doc(db, "tournaments", btn.dataset.id));
       await refreshTournaments();
     });
   });
+}
+
+document.addEventListener("langchange", () => {
+  if (!main.hidden) refreshTournaments();
+});
+
+function hashHue(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = s.charCodeAt(i) + ((h << 5) - h);
+    h |= 0;
+  }
+  return Math.abs(h) % 360;
+}
+
+function hexIconSvg(hue) {
+  const color = `hsl(${hue} 75% 60%)`;
+  return `<svg viewBox="0 0 56 56" width="48" height="48" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="28,4 48,16 48,40 28,52 8,40 8,16" fill="${color}" fill-opacity="0.15" stroke="${color}" stroke-width="1.5"/>
+    <polygon points="28,14 38,20 38,32 28,38 18,32 18,20" fill="${color}" fill-opacity="0.4"/>
+  </svg>`;
 }
 
 function escapeHtml(s) {

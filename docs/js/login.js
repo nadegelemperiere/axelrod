@@ -1,4 +1,5 @@
 import { login, onAuth, isUserAdmin } from "./auth.js";
+import { t } from "./i18n.js";
 
 const form = document.getElementById("login-form");
 const errEl = document.getElementById("error");
@@ -23,7 +24,7 @@ form.addEventListener("submit", async (e) => {
   try {
     await login(email, password);
   } catch (err) {
-    errEl.textContent = "Connexion échouée. Vérifie email et mot de passe.";
+    errEl.textContent = t("login.error");
     errEl.hidden = false;
     console.error(err);
   } finally {

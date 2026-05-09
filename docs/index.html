@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tournoi Axelrod — Connexion</title>
+  <title>Sign in · Axelrod</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -11,21 +11,30 @@
 </head>
 <body class="login-body">
   <main class="login-card">
-    <h1>AXELROD</h1>
-    <p class="lede">Tournoi de bots Python · dilemme du prisonnier itéré</p>
+    <button type="button" class="lang-toggle" aria-label="Toggle language">FR</button>
+    <div class="logo">
+      <img src="imgs/logo.png" alt="Axelrod" class="logo-mark" />
+      <div class="logo-text">
+        <div class="logo-name">Axelrod</div>
+        <div class="logo-tagline" data-i18n="app.tagline">The Tournament of Minds</div>
+      </div>
+    </div>
+    <h2 class="login-title" data-i18n="login.title">Sign in</h2>
+    <p class="lede" data-i18n="login.subtitle">Python bot tournament · iterated prisoner's dilemma</p>
     <form id="login-form" autocomplete="on">
       <label>
-        Email
+        <span data-i18n="login.email">Email</span>
         <input type="email" id="email" required autocomplete="username">
       </label>
       <label>
-        Mot de passe
+        <span data-i18n="login.password">Password</span>
         <input type="password" id="password" required autocomplete="current-password">
       </label>
-      <button type="submit">Se connecter</button>
+      <button type="submit" data-i18n="login.submit">Sign in</button>
       <p id="error" class="error" hidden></p>
     </form>
   </main>
+  <script type="module" src="js/i18n.js"></script>
   <script type="module" src="js/login.js"></script>
 </body>
 </html>

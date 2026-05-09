@@ -1,10 +1,11 @@
 """
-Sandbox Pyodide pour tester les bots côté navigateur.
+Pyodide sandbox to test user bots in the browser.
 
-Exécuté à l'intérieur de Pyodide. Expose:
-  - REFERENCE_BOTS : dict {nom: fonction} des stratégies de référence
-  - validate_bot_code(code) : vérifie qu'un code utilisateur définit une fonction play() valide
-  - run_test(code, opponent_name, nb_turns, noise_level, seed) : valide + joue un match, renvoie un dict
+Runs inside Pyodide. Exposes:
+  - REFERENCE_BOTS: dict {name: callable} of reference strategies
+  - validate_bot_code(code): checks that user code defines a valid play() function
+  - run_test(code, opponent_name, nb_turns, noise_level, seed): validates + plays a match,
+    returns a dict with results or error.
 """
 
 import random
@@ -18,7 +19,7 @@ PAYOFF = {
 }
 
 
-# Bots de référence — les équipes peuvent s'entraîner contre eux.
+# Reference bots — teams can train against them.
 
 def always_cooperate(my_h, opp_h):
     return 'C'
@@ -41,9 +42,8 @@ def grudger(my_h, opp_h):
 
 
 def pavlov(my_h, opp_h):
-    # win-stay, lose-shift : on rejoue le même coup si on a "gagné" au tour
-    # précédent (les deux ont coopéré, ou on a trahi sans riposte). Sinon on
-    # change.
+    # win-stay, lose-shift: replay the same move if we "won" the previous round
+    # (both cooperated, or we defected unopposed). Otherwise switch.
     if not my_h:
         return 'C'
     last_me = my_h[-1]
@@ -77,7 +77,7 @@ REFERENCE_BOTS = {
 }
 
 
-# Imports interdits dans le code utilisateur (filtrés à la lecture).
+# Imports forbidden in user code (filtered at parse time).
 FORBIDDEN_IMPORTS = {
     'os', 'sys', 'subprocess', 'socket', 'shutil', 'pathlib', 'requests',
     'urllib', 'http', 'pickle', 'marshal', 'ctypes', 'multiprocessing',
@@ -88,33 +88,33 @@ FORBIDDEN_NAMES = {'eval', 'exec', '__import__', 'compile', 'open'}
 
 
 def _check_forbidden(code):
-    """Renvoie un message d'erreur si le code utilise des choses interdites, sinon None."""
+    """Returns an error message if the code uses forbidden things, otherwise None."""
     import ast
     try:
         tree = ast.parse(code)
     except SyntaxError as e:
-        return f'Erreur de syntaxe ligne {e.lineno}: {e.msg}'
+        return f'Syntax error on line {e.lineno}: {e.msg}'
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 root = alias.name.split('.')[0]
                 if root in FORBIDDEN_IMPORTS:
-                    return f"Import interdit: '{alias.name}'"
+                    return f"Forbidden import: '{alias.name}'"
         elif isinstance(node, ast.ImportFrom):
             if node.module:
                 root = node.module.split('.')[0]
                 if root in FORBIDDEN_IMPORTS:
-                    return f"Import interdit: 'from {node.module}'"
+                    return f"Forbidden import: 'from {node.module}'"
         elif isinstance(node, ast.Name) and node.id in FORBIDDEN_NAMES:
-            return f"Utilisation interdite de '{node.id}'"
+            return f"Forbidden use of '{node.id}'"
     return None
 
 
 def validate_bot_code(code):
-    """Vérifie qu'un code utilisateur définit une fonction play() valide.
+    """Checks that user code defines a valid play() function.
 
-    Renvoie un dict {ok: bool, message: str, play: callable | None}
+    Returns a dict {ok: bool, message: str, play: callable | None}
     """
     forbidden = _check_forbidden(code)
     if forbidden:
@@ -124,51 +124,51 @@ def validate_bot_code(code):
     try:
         exec(code, namespace)
     except SyntaxError as e:
-        return {'ok': False, 'message': f'Erreur de syntaxe: {e}', 'play': None}
+        return {'ok': False, 'message': f'Syntax error: {e}', 'play': None}
     except Exception as e:
-        return {'ok': False, 'message': f'Erreur au chargement: {type(e).__name__}: {e}', 'play': None}
+        return {'ok': False, 'message': f'Load error: {type(e).__name__}: {e}', 'play': None}
 
     if 'play' not in namespace:
-        return {'ok': False, 'message': "Pas de fonction play() définie dans ton code.", 'play': None}
+        return {'ok': False, 'message': "No play() function defined in your code.", 'play': None}
     play = namespace['play']
     if not callable(play):
-        return {'ok': False, 'message': "play n'est pas une fonction.", 'play': None}
+        return {'ok': False, 'message': "play is not a function.", 'play': None}
 
     try:
         result = play([], [])
     except Exception as e:
-        return {'ok': False, 'message': f'play() a planté au tour 0: {type(e).__name__}: {e}', 'play': None}
+        return {'ok': False, 'message': f'play() crashed on round 0: {type(e).__name__}: {e}', 'play': None}
     if result not in ('C', 'D'):
-        return {'ok': False, 'message': f"play() a renvoyé {result!r} au tour 0, attendu 'C' ou 'D'.", 'play': None}
+        return {'ok': False, 'message': f"play() returned {result!r} on round 0, expected 'C' or 'D'.", 'play': None}
 
-    return {'ok': True, 'message': 'Bot valide.', 'play': play}
+    return {'ok': True, 'message': 'Bot is valid.', 'play': play}
 
 
 def run_match(play_a, play_b, nb_turns=30, noise_level=0.0):
-    """Joue un match entre deux bots. Renvoie un dict avec les scores et historiques."""
+    """Plays a match between two bots. Returns a dict with scores and histories."""
     hist_a, hist_b = [], []
     score_a, score_b = 0, 0
-    intended_a, intended_b = [], []  # coups voulus (avant bruit)
+    intended_a, intended_b = [], []  # intended moves (before noise)
 
     for turn in range(nb_turns):
         try:
             move_a = play_a(list(hist_a), list(hist_b))
         except Exception as e:
-            return {'ok': False, 'error': f'Ton bot a planté au tour {turn}: {type(e).__name__}: {e}'}
+            return {'ok': False, 'error': f'Your bot crashed on round {turn}: {type(e).__name__}: {e}'}
         if move_a not in ('C', 'D'):
-            return {'ok': False, 'error': f"Ton bot a renvoyé {move_a!r} au tour {turn}, attendu 'C' ou 'D'."}
+            return {'ok': False, 'error': f"Your bot returned {move_a!r} on round {turn}, expected 'C' or 'D'."}
 
         try:
             move_b = play_b(list(hist_b), list(hist_a))
         except Exception as e:
-            return {'ok': False, 'error': f"L'adversaire a planté au tour {turn}: {type(e).__name__}: {e}"}
+            return {'ok': False, 'error': f"Opponent crashed on round {turn}: {type(e).__name__}: {e}"}
         if move_b not in ('C', 'D'):
-            return {'ok': False, 'error': f"L'adversaire a renvoyé {move_b!r} au tour {turn}."}
+            return {'ok': False, 'error': f"Opponent returned {move_b!r} on round {turn}."}
 
         intended_a.append(move_a)
         intended_b.append(move_b)
 
-        # Bruit : chaque coup peut être inversé en transmission.
+        # Noise: each move may be flipped in transmission.
         if noise_level > 0:
             if random.random() < noise_level:
                 move_a = 'D' if move_a == 'C' else 'C'
@@ -195,9 +195,9 @@ def run_match(play_a, play_b, nb_turns=30, noise_level=0.0):
 
 
 def run_test(code, opponent_name, nb_turns=30, noise_level=0.0, seed=None):
-    """Valide le code utilisateur puis joue un match contre un bot de référence.
+    """Validates user code then plays a match against a reference bot.
 
-    Renvoie un dict avec ok=True/False et soit les résultats, soit une erreur.
+    Returns a dict with ok=True/False and either results or an error.
     """
     if seed is not None:
         random.seed(seed)
@@ -207,7 +207,7 @@ def run_test(code, opponent_name, nb_turns=30, noise_level=0.0, seed=None):
         return {'ok': False, 'error': validation['message']}
 
     if opponent_name not in REFERENCE_BOTS:
-        return {'ok': False, 'error': f"Adversaire inconnu: '{opponent_name}'"}
+        return {'ok': False, 'error': f"Unknown opponent: '{opponent_name}'"}
 
     result = run_match(
         validation['play'],
