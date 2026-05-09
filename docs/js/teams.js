@@ -139,7 +139,10 @@ async function refreshTeams() {
 
   teams.forEach((team, i) => {
     const c = counts[i];
+    const hue = teamHue(team.display_name);
     const li = document.createElement("li");
+    li.className = "team-row";
+    li.style.setProperty("--team-color", `hsl(${hue} 75% 65%)`);
     const emoji = team.emoji ? `<span class="team-emoji">${escapeHtml(team.emoji)}</span>` : "";
     const botInfo = c.total === 0
       ? '<span class="badge">aucun bot</span>'
@@ -148,7 +151,7 @@ async function refreshTeams() {
       <div class="t-row">
         ${emoji}<strong>${escapeHtml(team.display_name)}</strong>
         ${botInfo}
-        <span class="meta uid">UID: ${escapeHtml(team.uid_owner)}</span>
+        <span class="meta uid">${escapeHtml(team.uid_owner)}</span>
         <button data-id="${team.id}" data-uid="${escapeHtml(team.uid_owner)}" class="del-btn" type="button">Supprimer</button>
       </div>
     `;
@@ -172,6 +175,15 @@ function showMsg(el, ok, message) {
   el.classList.remove("ok", "ko");
   el.classList.add(ok ? "ok" : "ko");
   el.textContent = message;
+}
+
+function teamHue(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    hash |= 0;
+  }
+  return Math.abs(hash) % 360;
 }
 
 function escapeHtml(s) {

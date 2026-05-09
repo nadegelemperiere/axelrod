@@ -3,14 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mon équipe · Tournoi Axelrod</title>
+  <title>Mon équipe · Axelrod</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header class="topbar">
-    <h1 id="page-title">Mon équipe · Tournoi Axelrod</h1>
+    <h1><span class="brand-accent">▶</span> Axelrod · Arène</h1>
     <div class="topbar-right">
-      <span id="user-email" class="muted"></span>
+      <span id="user-email"></span>
       <button id="logout-btn" type="button">Déconnexion</button>
     </div>
   </header>
@@ -20,16 +23,19 @@
   </p>
 
   <p id="loading-banner" class="loading-banner">
-    Chargement de l'environnement Python (Pyodide). Patience, ~10 s la première fois…
+    <span class="phase-indicator"><span class="dot"></span></span>
+    Chargement de l'environnement Python (Pyodide) — ~10 s la première fois…
   </p>
 
   <main id="main" hidden>
-    <section class="card team-header">
-      <div>
-        <h2><span id="team-emoji" class="team-emoji"></span><span id="team-name"></span></h2>
-        <p class="muted" id="team-meta"></p>
+    <section class="team-hero" id="team-hero">
+      <div class="team-hero-emoji" id="team-emoji"></div>
+      <div class="team-hero-text">
+        <p class="team-hero-kicker" id="team-kicker"></p>
+        <h1 class="team-hero-name" id="team-name"></h1>
+        <p class="team-hero-meta" id="team-meta"></p>
       </div>
-      <div class="bot-status">
+      <div class="team-hero-status">
         <span class="badge" id="bot-status-badge">aucun bot</span>
       </div>
     </section>
@@ -46,10 +52,12 @@
       <p id="validation-msg" class="validation-msg" hidden></p>
     </section>
 
-    <section class="card">
-      <h2>Arène de test</h2>
-      <p class="muted small">
-        Avant de soumettre, teste ton bot contre des stratégies de référence. Tu peux relancer autant de fois que tu veux ; rien n'est sauvegardé.
+    <section class="card arena-card">
+      <div class="section-head">
+        <h2>Arène d'entraînement</h2>
+      </div>
+      <p class="muted small" style="margin-top: -0.5rem;">
+        Affronte les stratégies de référence avant de soumettre. Relance autant que tu veux — rien n'est sauvegardé.
       </p>
       <div class="arena-form">
         <label>
@@ -58,7 +66,7 @@
             <option value="tit_for_tat">tit_for_tat — copie le dernier coup</option>
             <option value="always_cooperate">always_cooperate — coopère toujours</option>
             <option value="always_defect">always_defect — trahit toujours</option>
-            <option value="grudger">grudger — rancune éternelle dès la première trahison</option>
+            <option value="grudger">grudger — rancune éternelle</option>
             <option value="pavlov">pavlov — win-stay, lose-shift</option>
             <option value="generous_tit_for_tat">generous_tit_for_tat — pardonne 10%</option>
             <option value="random">random — coup aléatoire</option>
@@ -69,14 +77,14 @@
           <input type="number" id="arena-turns" value="30" min="5" max="200">
         </label>
         <label>
-          Bruit (0 à 0.5)
+          Bruit
           <input type="number" id="arena-noise" value="0" step="0.05" min="0" max="0.5">
         </label>
         <label>
-          Graine (option, pour reproduire)
-          <input type="number" id="arena-seed" placeholder="laisse vide pour aléatoire">
+          Graine
+          <input type="number" id="arena-seed" placeholder="aléatoire">
         </label>
-        <button id="run-btn" type="button" disabled>Lancer le match</button>
+        <button id="run-btn" type="button" disabled>▶ Affronter</button>
       </div>
 
       <div id="arena-result" class="arena-result" hidden>
@@ -87,7 +95,7 @@
           </div>
           <div class="score-vs">vs</div>
           <div class="score-block opp">
-            <div class="score-label" id="opp-label">Adversaire</div>
+            <div class="score-label" id="opp-label">adversaire</div>
             <div class="score-value" id="score-b">—</div>
           </div>
         </div>
@@ -100,10 +108,6 @@
             <span class="history-label">Adv</span>
             <code class="history-line" id="history-b"></code>
           </div>
-          <div class="history-row history-axis">
-            <span class="history-label"></span>
-            <code class="history-line" id="history-axis"></code>
-          </div>
         </div>
         <p class="muted small" id="noise-note" hidden></p>
       </div>
@@ -112,14 +116,16 @@
     </section>
 
     <section class="card">
-      <h2>Soumettre ce code pour le tournoi</h2>
-      <p class="muted small">
-        La soumission enregistre la version actuelle de ton code. Tu peux re-soumettre à volonté ; seule la dernière version validée sera utilisée pour le tournoi officiel.
+      <div class="section-head">
+        <h2>Soumettre pour le tournoi</h2>
+        <button id="submit-btn" type="button" disabled>Soumettre</button>
+      </div>
+      <p class="muted small" style="margin-top: -0.5rem;">
+        Enregistre la version actuelle de ton code. Tu peux re-soumettre à volonté ; seule la dernière version validée compte pour le tournoi officiel.
       </p>
-      <button id="submit-btn" type="button" disabled>Soumettre</button>
       <p id="submit-msg" class="validation-msg" hidden></p>
 
-      <h3 class="subhead">Tes soumissions</h3>
+      <h3 class="subhead">Historique de tes soumissions</h3>
       <ul id="submissions" class="t-list"></ul>
     </section>
   </main>

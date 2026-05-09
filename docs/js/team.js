@@ -42,8 +42,10 @@ const els = {
   main: document.getElementById("main"),
   userEmail: document.getElementById("user-email"),
   logoutBtn: document.getElementById("logout-btn"),
+  teamHero: document.getElementById("team-hero"),
   teamName: document.getElementById("team-name"),
   teamEmoji: document.getElementById("team-emoji"),
+  teamKicker: document.getElementById("team-kicker"),
   teamMeta: document.getElementById("team-meta"),
   botStatusBadge: document.getElementById("bot-status-badge"),
   editor: document.getElementById("editor"),
@@ -121,13 +123,28 @@ els.logoutBtn.addEventListener("click", async () => {
 });
 
 function renderTeamHeader() {
-  els.teamName.textContent = context.team.display_name;
-  els.teamEmoji.textContent = context.team.emoji || "";
+  const team = context.team;
   const t = context.tournament;
-  els.teamMeta.textContent = `${t.name} · phase ${t.phase} · ${t.nb_turns} tours · bruit ${(t.noise_level * 100).toFixed(0)}%`;
+  const hue = teamHue(team.display_name);
+  els.teamHero.style.setProperty("--team-hue", hue);
+  els.teamHero.style.setProperty("--team-color", `hsl(${hue} 75% 65%)`);
+  els.teamName.textContent = team.display_name;
+  els.teamEmoji.textContent = team.emoji || "◆";
+  els.teamKicker.textContent = `> ${t.name}`;
+  const noisePct = (t.noise_level * 100).toFixed(0);
+  els.teamMeta.innerHTML = `Phase <strong>${t.phase}</strong> · <strong>${t.nb_turns}</strong> tours · bruit <strong>${noisePct}%</strong>`;
   // pré-remplit l'arène avec les paramètres du tournoi
   els.arenaTurns.value = t.nb_turns;
   els.arenaNoise.value = t.noise_level;
+}
+
+function teamHue(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    hash |= 0;
+  }
+  return Math.abs(hash) % 360;
 }
 
 function storageKey() {
@@ -143,13 +160,16 @@ async function initEditor() {
   editor = window.monaco.editor.create(els.editor, {
     value: saved || STARTER_CODE,
     language: "python",
-    theme: "vs-light",
+    theme: "vs-dark",
     minimap: { enabled: false },
     fontSize: 13,
+    fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace",
+    fontLigatures: true,
     automaticLayout: true,
     scrollBeyondLastLine: false,
     tabSize: 4,
-    insertSpaces: true
+    insertSpaces: true,
+    padding: { top: 12, bottom: 12 }
   });
   editor.onDidChangeModelContent(() => {
     localStorage.setItem(storageKey(), editor.getValue());
@@ -226,8 +246,6 @@ els.runBtn.addEventListener("click", () => {
 });
 
 function renderArenaResult(result, opponent) {
-  els.scoreA.textContent = result.score_a;
-  els.scoreB.textContent = result.score_b;
   els.oppLabel.textContent = opponent;
   renderHistory(result.history_a, els.historyA);
   renderHistory(result.history_b, els.historyB);
@@ -238,6 +256,25 @@ function renderArenaResult(result, opponent) {
     els.noiseNote.hidden = true;
   }
   els.arenaResult.hidden = false;
+  animateCount(els.scoreA, result.score_a);
+  animateCount(els.scoreB, result.score_b);
+}
+
+function animateCount(el, target, duration = 600) {
+  const current = parseFloat(el.textContent);
+  const start = isNaN(current) ? 0 : current;
+  if (start === target) {
+    el.textContent = String(target);
+    return;
+  }
+  const startTime = performance.now();
+  function step(now) {
+    const t = Math.min((now - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    el.textContent = String(Math.round(start + (target - start) * eased));
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
 }
 
 function renderHistory(str, container) {
