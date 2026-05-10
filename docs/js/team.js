@@ -29,11 +29,16 @@ function renderHome() {
   const team = context.team;
   const tournament = context.tournament;
   els.welcomeGreeting.textContent = t("welcome.greeting", { name: team.display_name });
-  els.welcomeSeasonName.textContent = tournament.name;
-  els.welcomeSeasonMeta.textContent = t("welcome.season.meta", {
-    phase: tournament.phase,
-    turns: tournament.nb_turns
-  });
+  if (tournament) {
+    els.welcomeSeasonName.textContent = tournament.name;
+    els.welcomeSeasonMeta.textContent = t("welcome.season.meta", {
+      phase: tournament.phase,
+      turns: tournament.nb_turns
+    });
+  } else {
+    els.welcomeSeasonName.textContent = "—";
+    els.welcomeSeasonMeta.textContent = t("noteam.message");
+  }
 }
 
 document.addEventListener("langchange", () => {

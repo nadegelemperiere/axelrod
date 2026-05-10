@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body data-page="admin-tournaments">
+<body data-page="admin-teams">
 
   <div class="app">
 
@@ -27,28 +27,21 @@
       <nav class="sidebar-nav">
         <div class="sidebar-section admin-only" hidden>
           <p class="sidebar-section-label" data-i18n="sidebar.admin">Admin</p>
-          <a href="admin.html" class="sidebar-link active" data-page="admin-tournaments">
+          <a href="admin.html" class="sidebar-link" data-page="admin-tournaments">
             <img src="imgs/tournament.png" alt="" class="sidebar-icon" />
             <div class="sidebar-link-text">
               <div class="sidebar-link-title" data-i18n="sidebar.tournaments">Tournaments</div>
               <div class="sidebar-link-desc" data-i18n="sidebar.tournaments.adminDesc">Manage active tournaments</div>
             </div>
           </a>
+          <a href="teams.html" class="sidebar-link active" data-page="admin-teams">
+            <img src="imgs/strategies.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="teams.admin.title">Teams</div>
+              <div class="sidebar-link-desc" data-i18n="teams.admin.subtitle">Create and manage teams</div>
+            </div>
+          </a>
         </div>
-        <a class="sidebar-link disabled">
-          <img src="imgs/rankings.png" alt="" class="sidebar-icon" />
-          <div class="sidebar-link-text">
-            <div class="sidebar-link-title" data-i18n="sidebar.leaderboards">Rankings</div>
-            <div class="sidebar-link-desc" data-i18n="sidebar.leaderboards.desc">Discover the best strategists</div>
-          </div>
-        </a>
-        <a class="sidebar-link disabled">
-          <img src="imgs/halloffame.png" alt="" class="sidebar-icon" />
-          <div class="sidebar-link-text">
-            <div class="sidebar-link-title" data-i18n="sidebar.hallOfFame">Hall of Fame</div>
-            <div class="sidebar-link-desc" data-i18n="sidebar.hallOfFame.desc">The legends of Axelrod</div>
-          </div>
-        </a>
       </nav>
 
       <div class="sidebar-footer">
@@ -70,9 +63,8 @@
 
       <div class="content-header">
         <div>
-          <p class="card-kicker"><a href="admin.html" style="color: var(--muted);" data-i18n="teams.back">← Tournaments</a></p>
-          <h1 id="t-title" data-i18n="teams.title.fallback">Tournament</h1>
-          <p class="lede" id="t-meta"></p>
+          <h1 data-i18n="teams.admin.title">Teams</h1>
+          <p class="lede" data-i18n="teams.admin.subtitle">Create and manage teams. Assign them to tournaments below.</p>
         </div>
       </div>
 

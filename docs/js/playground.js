@@ -3,9 +3,13 @@ import { t, getLang } from "./i18n.js";
 import { loadTeamContext } from "./team-context.js";
 import { db } from "./firebase-config.js";
 import {
+  doc,
+  getDoc,
+  updateDoc,
   collection,
   addDoc,
   query,
+  where,
   orderBy,
   limit,
   getDocs,
@@ -93,10 +97,22 @@ const els = {
   matchStats: document.getElementById("match-stats"),
   fullAnalysisText: document.getElementById("full-analysis-text"),
   quickAnalysisText: document.getElementById("quick-analysis-text"),
+  saveBtn: document.getElementById("save-btn"),
   submitBtn: document.getElementById("submit-btn"),
   submitMsg: document.getElementById("submit-msg"),
-  submissions: document.getElementById("submissions")
+  submissions: document.getElementById("submissions"),
+  saveModal: document.getElementById("save-modal"),
+  saveName: document.getElementById("save-name"),
+  saveDescription: document.getElementById("save-description"),
+  saveConfirmBtn: document.getElementById("save-confirm-btn"),
+  submitModal: document.getElementById("submit-modal"),
+  submitName: document.getElementById("submit-name"),
+  submitConfirmCheck: document.getElementById("submit-confirm-check"),
+  submitConfirmBtn: document.getElementById("submit-confirm-btn")
 };
+
+let activeStrategyId = null;
+let activeStrategyName = null;
 
 const PAYOFF = { CC: [3, 3], CD: [0, 5], DC: [5, 0], DD: [1, 1] };
 
@@ -118,9 +134,34 @@ loadTeamContext({
     selectedOpponent = opponents[0] || DEFAULT_OPPONENTS[0];
     setMatchAvatarYou(ctx.team.display_name);
     renderOpponents();
-    await initEditor();
+
+    // Load strategy from URL param if any (overrides localStorage starter).
+    const params = new URLSearchParams(window.location.search);
+    const strategyParam = params.get("strategy");
+    let initialCode = null;
+    if (strategyParam) {
+      try {
+        const sSnap = await getDoc(
+          doc(db, "teams", ctx.uid, "strategies", strategyParam)
+        );
+        if (sSnap.exists()) {
+          const data = sSnap.data();
+          activeStrategyId = strategyParam;
+          activeStrategyName = data.name || null;
+          initialCode = data.code || null;
+        }
+      } catch (e) {
+        console.warn("Failed to load strategy from URL", e);
+      }
+    }
+
+    await initEditor(initialCode);
     await refreshSubmissions();
     els.main.hidden = false;
+    if (activeStrategyName) {
+      showValidationMsg(els.validationMsg,
+        { ok: true, message: t("playground.loaded.from.strategy", { name: activeStrategyName }) });
+    }
     await initPyodide();
   },
   onNoTeam: () => {
@@ -135,11 +176,11 @@ function getStarterCode() {
 }
 
 function storageKey() {
-  return `axelrod-code-${context.tournamentId}-${context.teamId}`;
+  return `axelrod-code-${context.uid}`;
 }
 
 function opponentsKey() {
-  return `axelrod-opponents-${context.tournamentId}-${context.teamId}`;
+  return `axelrod-opponents-${context.uid}`;
 }
 
 function loadOpponents() {
@@ -156,12 +197,12 @@ function saveOpponents() {
   localStorage.setItem(opponentsKey(), JSON.stringify(opponents));
 }
 
-async function initEditor() {
+async function initEditor(initialCode) {
   await new Promise((resolve) => {
     window.require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs" } });
     window.require(["vs/editor/editor.main"], resolve);
   });
-  const saved = localStorage.getItem(storageKey());
+  const saved = initialCode != null ? initialCode : localStorage.getItem(storageKey());
   editor = window.monaco.editor.create(els.editor, {
     value: saved || getStarterCode(),
     language: "python",
@@ -202,6 +243,7 @@ async function initPyodide() {
     pyodide.runPython(sandboxCode);
     els.loadingBanner.hidden = true;
     els.runBtn.disabled = false;
+    els.saveBtn.disabled = false;
     els.submitBtn.disabled = false;
   } catch (err) {
     console.error("Pyodide init failed", err);
@@ -354,7 +396,7 @@ els.runBtn.addEventListener("click", () => {
   }
   els.arenaError.hidden = true;
   const code = editor.getValue();
-  const tournament = context.tournament;
+  const tournament = context.tournament || { nb_turns: 30, noise_level: 0 };
   const nbTurns = tournament.nb_turns;
   const noise = tournament.noise_level;
 
@@ -657,34 +699,136 @@ function renderAnalysis(result) {
 }
 
 // ---------- Submit ----------
-els.submitBtn.addEventListener("click", async () => {
+// ---------- Save (to /strategies) ----------
+els.saveBtn.addEventListener("click", () => {
   if (!pyodide) return;
-  els.submitMsg.hidden = true;
-  els.submitBtn.disabled = true;
+  els.saveName.value = activeStrategyName || "";
+  els.saveDescription.value = "";
+  openSimpleModal(els.saveModal);
+});
+
+els.saveConfirmBtn.addEventListener("click", async () => {
+  const name = els.saveName.value.trim();
+  if (!name) return;
+  els.saveConfirmBtn.disabled = true;
+  try {
+    const code = editor.getValue();
+    const validation = pyodide ? pythonValidate(code) : { ok: true, message: "" };
+    const desc = els.saveDescription.value.trim();
+    const strategiesRef = collection(db, "teams", context.uid, "strategies");
+
+    if (activeStrategyId) {
+      // Update existing
+      const updateData = {
+        name,
+        code,
+        validation_status: validation.ok ? "ok" : "error",
+        validation_message: validation.message,
+        updated_at: serverTimestamp()
+      };
+      if (desc) updateData.description = desc;
+      await updateDoc(doc(strategiesRef, activeStrategyId), updateData);
+      activeStrategyName = name;
+      closeSimpleModal(els.saveModal);
+      showValidationMsg(els.submitMsg,
+        { ok: true, message: t("playground.save.update.success", { name }) });
+    } else {
+      const ref = await addDoc(strategiesRef, {
+        name,
+        description: desc,
+        code,
+        validation_status: validation.ok ? "ok" : "error",
+        validation_message: validation.message,
+        created_at: serverTimestamp(),
+        updated_at: serverTimestamp(),
+        last_submitted_at: null
+      });
+      activeStrategyId = ref.id;
+      activeStrategyName = name;
+      closeSimpleModal(els.saveModal);
+      showValidationMsg(els.submitMsg,
+        { ok: true, message: t("playground.save.success", { name }) });
+    }
+  } catch (err) {
+    console.error(err);
+    showValidationMsg(els.submitMsg, { ok: false, message: t("submit.error", { msg: err.message || err }) });
+  } finally {
+    els.saveConfirmBtn.disabled = false;
+  }
+});
+
+// ---------- Submit to tournament (to /bots) ----------
+els.submitBtn.addEventListener("click", () => {
+  if (!pyodide) return;
+  els.submitName.value = activeStrategyName || "";
+  els.submitConfirmCheck.checked = false;
+  els.submitConfirmBtn.disabled = true;
+  openSimpleModal(els.submitModal);
+});
+
+els.submitConfirmCheck.addEventListener("change", () => {
+  els.submitConfirmBtn.disabled = !els.submitConfirmCheck.checked;
+});
+
+els.submitConfirmBtn.addEventListener("click", async () => {
+  if (!pyodide) return;
+  if (!context.tournamentId) {
+    showValidationMsg(els.submitMsg,
+      { ok: false, message: "No active tournament. Ask your teacher to assign your team to a tournament." });
+    closeSimpleModal(els.submitModal);
+    return;
+  }
+  els.submitConfirmBtn.disabled = true;
   try {
     const code = editor.getValue();
     const validation = pythonValidate(code);
+    const submissionName = els.submitName.value.trim() || activeStrategyName || "Untitled";
     await addDoc(
-      collection(db, "tournaments", context.tournamentId, "teams", context.teamId, "bots"),
+      collection(db, "tournaments", context.tournamentId, "bots"),
       {
+        team_id: context.uid,
         code,
         submitted_at: serverTimestamp(),
         validation_status: validation.ok ? "ok" : "error",
-        validation_message: validation.message
+        validation_message: validation.message,
+        strategy_id: activeStrategyId || null,
+        name: submissionName
       }
     );
-    showValidationMsg(els.submitMsg, validation, validation.ok ? t("submit.saved") : t("submit.invalid"));
+    if (activeStrategyId) {
+      await updateDoc(
+        doc(db, "teams", context.uid, "strategies", activeStrategyId),
+        { last_submitted_at: serverTimestamp() }
+      );
+    }
+    closeSimpleModal(els.submitModal);
+    showValidationMsg(els.submitMsg,
+      { ok: validation.ok, message: validation.ok
+        ? t("playground.submit.success", { name: submissionName })
+        : t("submit.invalid") + " " + validation.message });
     await refreshSubmissions();
   } catch (err) {
-    els.submitMsg.hidden = false;
-    els.submitMsg.classList.remove("ok");
-    els.submitMsg.classList.add("ko");
-    els.submitMsg.textContent = t("submit.error", { msg: err.message || err });
     console.error(err);
+    showValidationMsg(els.submitMsg, { ok: false, message: t("submit.error", { msg: err.message || err }) });
   } finally {
-    els.submitBtn.disabled = false;
+    els.submitConfirmBtn.disabled = !els.submitConfirmCheck.checked;
   }
 });
+
+// Reuse the existing modal helpers from the docs/picker modals (see openModal/closeModal earlier)
+function openSimpleModal(modal) {
+  modal.hidden = false;
+  modal.addEventListener("click", onSimpleBackdropClick);
+}
+function closeSimpleModal(modal) {
+  modal.hidden = true;
+  modal.removeEventListener("click", onSimpleBackdropClick);
+}
+function onSimpleBackdropClick(e) {
+  if (e.target === e.currentTarget || e.target.dataset.modalClose !== undefined || e.target.classList.contains("modal-close")) {
+    closeSimpleModal(e.currentTarget);
+  }
+}
 
 function showValidationMsg(el, result, prefix = "") {
   el.hidden = false;
@@ -694,8 +838,16 @@ function showValidationMsg(el, result, prefix = "") {
 }
 
 async function refreshSubmissions() {
-  const ref = collection(db, "tournaments", context.tournamentId, "teams", context.teamId, "bots");
-  const q = query(ref, orderBy("submitted_at", "desc"), limit(5));
+  if (!context.tournamentId) {
+    els.submissions.innerHTML = "";
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = t("submit.history.empty");
+    els.submissions.appendChild(li);
+    return;
+  }
+  const ref = collection(db, "tournaments", context.tournamentId, "bots");
+  const q = query(ref, where("team_id", "==", context.uid), orderBy("submitted_at", "desc"), limit(5));
   const snap = await getDocs(q);
   els.submissions.innerHTML = "";
   if (snap.empty) {

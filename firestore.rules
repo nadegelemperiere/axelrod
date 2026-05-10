@@ -20,30 +20,35 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Mapping UID → équipe assignée. Écrit par l'admin quand il crée une
-    // équipe et lui assigne un compte. Chaque utilisateur ne lit que sa propre
-    // entrée pour savoir vers quelle équipe et quel tournoi le rediriger.
-    match /users/{uid} {
-      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
-      allow write: if isAdmin();
+    // Équipes — top-level. Le doc ID est l'UID Firebase Auth du compte
+    // partagé par les 2 élèves de l'équipe. Une équipe persiste à travers
+    // les tournois ; le champ active_tournament_id pointe vers le tournoi
+    // courant.
+    match /teams/{uid} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+
+      // Bibliothèque de stratégies — privée à l'équipe propriétaire en
+      // écriture, mais lisible par les admins (pour les compteurs côté
+      // panneau admin) et par l'équipe elle-même.
+      match /strategies/{strategyId} {
+        allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+        allow create, update, delete: if isSignedIn() && request.auth.uid == uid;
+      }
     }
 
     match /tournaments/{tournamentId} {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
 
-      match /teams/{teamId} {
+      // Soumissions de bots dans ce tournoi. Le champ team_id identifie
+      // l'équipe qui soumet (équivaut à son UID Firebase Auth).
+      // Une équipe ne peut créer une soumission que pour elle-même.
+      match /bots/{botId} {
         allow read: if isSignedIn();
-        allow create, update, delete: if isAdmin();
-
-        // Soumission de bots : seule l'équipe propriétaire peut créer.
-        // Pas d'update ni delete (chaque soumission est une nouvelle version).
-        match /bots/{botId} {
-          allow read: if isSignedIn();
-          allow create: if isSignedIn() &&
-            get(/databases/$(database)/documents/tournaments/$(tournamentId)/teams/$(teamId)).data.uid_owner == request.auth.uid;
-          allow update, delete: if false;
-        }
+        allow create: if isSignedIn() &&
+          request.resource.data.team_id == request.auth.uid;
+        allow update, delete: if false;
       }
 
       // Matches et leaderboards écrits uniquement par les Cloud Functions.

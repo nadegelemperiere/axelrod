@@ -6,22 +6,20 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
   deleteDoc,
   collection,
-  addDoc,
   getDocs,
   query,
   orderBy,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
-initSidebar("admin-tournaments");
+initSidebar("admin-teams");
 
 const els = {
   accessDenied: document.getElementById("access-denied"),
   main: document.getElementById("main"),
-  tTitle: document.getElementById("t-title"),
-  tMeta: document.getElementById("t-meta"),
   addForm: document.getElementById("add-form"),
   addMsg: document.getElementById("add-msg"),
   teamsList: document.getElementById("teams-list"),
@@ -30,13 +28,7 @@ const els = {
   inputUid: document.getElementById("t-uid")
 };
 
-const params = new URLSearchParams(window.location.search);
-const tournamentId = params.get("t");
-
-if (!tournamentId) {
-  alert(t("teams.alert.no.tid"));
-  window.location.href = "admin.html";
-}
+let tournaments = [];
 
 onAuth(async (user) => {
   if (!user) {
@@ -48,29 +40,16 @@ onAuth(async (user) => {
     els.accessDenied.hidden = false;
     return;
   }
-  const tSnap = await getDoc(doc(db, "tournaments", tournamentId));
-  if (!tSnap.exists()) {
-    alert(t("teams.alert.not.found"));
-    window.location.href = "admin.html";
-    return;
-  }
-  tournamentData = tSnap.data();
-  renderTournamentHeader();
   els.main.hidden = false;
+  await loadTournaments();
   await refreshTeams();
 });
 
-let tournamentData = null;
-
-function renderTournamentHeader() {
-  if (!tournamentData) return;
-  els.tTitle.textContent = tournamentData.name;
-  els.tMeta.textContent = t("teams.meta", {
-    phase: tournamentData.phase,
-    turns: tournamentData.nb_turns,
-    noise: (tournamentData.noise_level * 100).toFixed(0),
-    status: t(`admin.status.${tournamentData.status}`)
-  });
+async function loadTournaments() {
+  const q = query(collection(db, "tournaments"), orderBy("created_at", "desc"));
+  const snap = await getDocs(q);
+  tournaments = [];
+  snap.forEach((d) => tournaments.push({ id: d.id, ...d.data() }));
 }
 
 els.addForm.addEventListener("submit", async (e) => {
@@ -82,34 +61,18 @@ els.addForm.addEventListener("submit", async (e) => {
   if (!display_name || !uid_owner) return;
 
   try {
-    // Vérifier que l'UID n'est pas déjà assigné
-    const existing = await getDoc(doc(db, "users", uid_owner));
+    const teamRef = doc(db, "teams", uid_owner);
+    const existing = await getDoc(teamRef);
     if (existing.exists()) {
-      const existingData = existing.data();
-      showMsg(els.addMsg, false, t("teams.add.uid.exists", {
-        team: existingData.team_id,
-        tournament: existingData.tournament_id
-      }));
-      return;
+      await updateDoc(teamRef, { display_name, emoji });
+    } else {
+      await setDoc(teamRef, {
+        display_name,
+        emoji,
+        active_tournament_id: null,
+        created_at: serverTimestamp()
+      });
     }
-
-    // 1. Créer l'équipe (Firestore génère un teamId)
-    const teamRef = await addDoc(collection(db, "tournaments", tournamentId, "teams"), {
-      display_name,
-      emoji,
-      uid_owner,
-      bot_status: "none",
-      latest_bot_id: null,
-      created_at: serverTimestamp()
-    });
-
-    // 2. Créer le mapping user → team
-    await setDoc(doc(db, "users", uid_owner), {
-      tournament_id: tournamentId,
-      team_id: teamRef.id,
-      assigned_at: serverTimestamp()
-    });
-
     showMsg(els.addMsg, true, t("teams.add.success", { name: display_name }));
     els.addForm.reset();
     await refreshTeams();
@@ -120,9 +83,8 @@ els.addForm.addEventListener("submit", async (e) => {
 });
 
 async function refreshTeams() {
-  const ref = collection(db, "tournaments", tournamentId, "teams");
-  const q = query(ref, orderBy("created_at", "asc"));
-  const snap = await getDocs(q);
+  const teamsRef = collection(db, "teams");
+  const snap = await getDocs(teamsRef);
   els.teamsList.innerHTML = "";
   if (snap.empty) {
     const li = document.createElement("li");
@@ -132,63 +94,102 @@ async function refreshTeams() {
     return;
   }
 
-  // pour chaque équipe, on compte aussi les bots soumis
   const teams = [];
   snap.forEach((d) => teams.push({ id: d.id, ...d.data() }));
+  teams.sort((a, b) => {
+    const at = a.created_at?.toMillis?.() ?? 0;
+    const bt = b.created_at?.toMillis?.() ?? 0;
+    return at - bt;
+  });
 
-  const counts = await Promise.all(
+  // Count strategies per team (1 query per team — fine for ~10 teams).
+  const stratCounts = {};
+  await Promise.all(
     teams.map(async (team) => {
-      const botsSnap = await getDocs(collection(db, "tournaments", tournamentId, "teams", team.id, "bots"));
-      let valid = 0;
-      botsSnap.forEach((b) => {
-        if (b.data().validation_status === "ok") valid++;
-      });
-      return { total: botsSnap.size, valid };
+      const stratSnap = await getDocs(collection(db, "teams", team.id, "strategies"));
+      stratCounts[team.id] = stratSnap.size;
     })
   );
 
-  teams.forEach((team, i) => {
-    const c = counts[i];
+  teams.forEach((team) => {
     const hue = teamHue(team.display_name);
     const li = document.createElement("li");
     li.className = "team-row";
     li.style.setProperty("--team-color", `hsl(${hue} 75% 65%)`);
     const avatarUrl = `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(team.display_name)}&backgroundColor=transparent`;
     const emoji = team.emoji ? `<span class="team-emoji">${escapeHtml(team.emoji)}</span>` : "";
-    const botInfo = c.total === 0
-      ? `<span class="badge">${t("teams.bot.none")}</span>`
-      : `<span class="badge ${c.valid > 0 ? "ok" : "ko"}">${t("teams.bot.count", { valid: c.valid, total: c.total })}</span>`;
+    const stratN = stratCounts[team.id] || 0;
+    const stratLabel = stratN > 1
+      ? t("teams.admin.strategies.count.plural", { n: stratN })
+      : t("teams.admin.strategies.count", { n: stratN });
+
+    const tournamentName = team.active_tournament_id
+      ? (tournaments.find((tn) => tn.id === team.active_tournament_id)?.name || team.active_tournament_id)
+      : t("teams.admin.tournament.none");
+
     li.innerHTML = `
-      <div class="t-row">
+      <div class="t-row" style="gap: 0.85rem;">
         <div class="team-avatar-mini" style="border-color: hsl(${hue} 75% 65%);">
           <img src="${avatarUrl}" alt="" loading="lazy" />
         </div>
-        ${emoji}<strong>${escapeHtml(team.display_name)}</strong>
-        ${botInfo}
-        <span class="meta uid">${escapeHtml(team.uid_owner)}</span>
-        <button data-id="${team.id}" data-uid="${escapeHtml(team.uid_owner)}" class="del-btn" type="button">${t("admin.delete")}</button>
+        <input type="text" class="inline-edit emoji-edit" data-id="${team.id}" data-field="emoji" value="${escapeHtml(team.emoji || "")}" maxlength="4" placeholder="🍑" />
+        <input type="text" class="inline-edit name-edit" data-id="${team.id}" data-field="display_name" value="${escapeHtml(team.display_name || "")}" maxlength="40" />
+        <span class="badge">${escapeHtml(stratLabel)}</span>
+        <span class="meta">${escapeHtml(t("teams.admin.tournament.column"))}: <strong>${escapeHtml(tournamentName)}</strong></span>
+        <button data-id="${team.id}" data-name="${escapeHtml(team.display_name)}" class="del-btn" type="button">${t("admin.delete")}</button>
       </div>
     `;
     els.teamsList.appendChild(li);
   });
 
+  // Wire inline edits (name + emoji)
+  els.teamsList.querySelectorAll(".inline-edit").forEach((input) => {
+    const original = input.value;
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { input.value = original; input.blur(); }
+    });
+    input.addEventListener("blur", async () => {
+      const newVal = input.value.trim();
+      const field = input.dataset.field;
+      const id = input.dataset.id;
+      // For display_name, don't accept empty
+      if (field === "display_name" && !newVal) {
+        input.value = original;
+        return;
+      }
+      if (newVal === original) return;
+      try {
+        await updateDoc(doc(db, "teams", id), { [field]: newVal });
+        // Avatar depends on display_name → re-render that row
+        await refreshTeams();
+      } catch (err) {
+        console.error(err);
+        alert(t("teams.add.error", { msg: err.message || err }));
+        input.value = original;
+      }
+    });
+  });
+
   els.teamsList.querySelectorAll(".del-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      if (!confirm(t("teams.delete.confirm"))) return;
-      const teamId = btn.dataset.id;
-      const uid = btn.dataset.uid;
-      await deleteDoc(doc(db, "tournaments", tournamentId, "teams", teamId));
-      await deleteDoc(doc(db, "users", uid));
-      await refreshTeams();
+      if (!confirm(t("strategies.delete.confirm"))) return;
+      try {
+        // Delete strategies subcollection first (admin can read/delete? not via current rules)
+        // Rules currently only let team owner manage their strategies. Admin deletes the team doc;
+        // the strategies subcollection becomes orphaned. Acceptable for now.
+        await deleteDoc(doc(db, "teams", btn.dataset.id));
+        await refreshTeams();
+      } catch (err) {
+        console.error(err);
+        alert(t("teams.add.error", { msg: err.message || err }));
+      }
     });
   });
 }
 
 document.addEventListener("langchange", () => {
-  if (!els.main.hidden) {
-    renderTournamentHeader();
-    refreshTeams();
-  }
+  if (!els.main.hidden) refreshTeams();
 });
 
 function showMsg(el, ok, message) {

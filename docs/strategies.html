@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My strategies · Axelrod</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="strategies">
+
+  <div class="app">
+
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="team.html" class="logo">
+          <img src="imgs/logo.png" alt="Axelrod" class="logo-mark" />
+          <div class="logo-text">
+            <div class="logo-name">Axelrod</div>
+            <div class="logo-tagline" data-i18n="app.tagline">The Tournament of Minds</div>
+          </div>
+        </a>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="sidebar-section">
+          <p class="sidebar-section-label" data-i18n="sidebar.lab">Laboratoire</p>
+          <a href="playground.html" class="sidebar-link" data-page="playground">
+            <img src="imgs/playground.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.playground">Playground</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.playground.desc">Experiment and test your strategies</div>
+            </div>
+          </a>
+          <a href="strategies.html" class="sidebar-link" data-page="strategies">
+            <img src="imgs/strategies.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.strategies">My strategies</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.strategies.desc">Create, edit and manage your strategies</div>
+            </div>
+          </a>
+          <a class="sidebar-link disabled">
+            <img src="imgs/training.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.training">Training</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.training.desc">Train and improve your bots</div>
+            </div>
+          </a>
+        </div>
+        <div class="sidebar-section">
+          <a class="sidebar-link disabled">
+            <img src="imgs/tournament.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.tournaments">Tournaments</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.tournaments.desc">Compete against other strategies</div>
+            </div>
+          </a>
+          <a class="sidebar-link disabled">
+            <img src="imgs/rankings.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.leaderboards">Rankings</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.leaderboards.desc">Discover the best strategists</div>
+            </div>
+          </a>
+          <a class="sidebar-link disabled">
+            <img src="imgs/halloffame.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.hallOfFame">Hall of Fame</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.hallOfFame.desc">The legends of Axelrod</div>
+            </div>
+          </a>
+        </div>
+        <div class="sidebar-section admin-only" hidden>
+          <p class="sidebar-section-label" data-i18n="sidebar.admin">Admin</p>
+          <a href="admin.html" class="sidebar-link" data-page="admin-tournaments">
+            <img src="imgs/tournament.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.tournaments">Tournaments</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.tournaments.adminDesc">Manage active tournaments</div>
+            </div>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="sidebar-user-avatar" id="user-avatar">—</div>
+          <div class="sidebar-user-info">
+            <div class="sidebar-user-name" id="user-name">—</div>
+            <div class="sidebar-user-role" id="user-role">—</div>
+          </div>
+          <button class="lang-toggle" type="button" aria-label="Toggle language">FR</button>
+          <button class="sidebar-logout" id="logout-btn" type="button" data-i18n-title="app.logout" title="Sign out">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="content">
+
+      <div class="content-header playground-header">
+        <div>
+          <h1 data-i18n="strategies.title">MY STRATEGIES</h1>
+          <p class="lede" data-i18n="strategies.subtitle">Build, refine and compare your Axelrod agents.</p>
+        </div>
+        <div class="content-header-actions">
+          <a href="playground.html" class="header-btn">
+            <span data-i18n="strategies.new">+ New strategy</span>
+          </a>
+        </div>
+      </div>
+
+      <p id="no-team" class="access-denied" hidden data-i18n="noteam.message">
+        You haven't been assigned to a team yet. Contact your teacher.
+      </p>
+
+      <main id="main" hidden>
+
+        <section class="strategies-grid">
+
+          <!-- Library (left) -->
+          <div class="playground-card library-card">
+            <div class="pg-card-head">
+              <h3 class="pg-card-title" data-i18n="strategies.library.title">Library</h3>
+            </div>
+            <input type="search" id="lib-search" class="lib-search" data-i18n-placeholder="strategies.library.search.placeholder" placeholder="Search…" />
+            <ul id="lib-list" class="lib-list"></ul>
+          </div>
+
+          <!-- Detail (middle) -->
+          <div class="playground-card strategies-detail">
+            <div id="detail-empty" class="profile-empty" data-i18n="strategies.detail.empty">
+              Select a strategy on the left, or create a new one.
+            </div>
+
+            <div id="detail-content" hidden>
+              <div class="pg-card-head">
+                <input type="text" id="detail-name" class="strategy-name-input" />
+                <span class="badge strategy-status" id="detail-status"></span>
+              </div>
+
+              <div class="strategy-tabs">
+                <button class="tab-btn active" data-tab="code" type="button" data-i18n="strategies.detail.tab.code">Code</button>
+                <button class="tab-btn" data-tab="info" type="button" data-i18n="strategies.detail.tab.info">Info</button>
+              </div>
+
+              <div id="strategy-tab-code" class="strategy-tab-content">
+                <pre id="detail-code" class="strategy-code-preview"></pre>
+              </div>
+
+              <div id="strategy-tab-info" class="strategy-tab-content" hidden>
+                <h4 class="subhead" data-i18n="strategies.detail.description">Description</h4>
+                <textarea id="detail-description" class="strategy-description" data-i18n-placeholder="strategies.detail.description.placeholder"></textarea>
+                <h4 class="subhead">&nbsp;</h4>
+                <dl class="strategy-info-grid">
+                  <dt data-i18n="strategies.detail.created">Created</dt>
+                  <dd id="detail-created">—</dd>
+                  <dt data-i18n="strategies.detail.modified">Modified</dt>
+                  <dd id="detail-modified">—</dd>
+                  <dt data-i18n="strategies.detail.submitted">Submitted</dt>
+                  <dd id="detail-submitted">—</dd>
+                </dl>
+              </div>
+
+              <div class="strategy-actions">
+                <button class="btn-test" type="button" id="btn-test" data-i18n="strategies.detail.action.test">Edit & test</button>
+                <button class="btn-duplicate" type="button" id="btn-duplicate" data-i18n="strategies.detail.action.duplicate">Duplicate</button>
+                <button class="btn-duplicate" type="button" id="btn-delete" data-i18n="strategies.detail.action.delete">Delete</button>
+                <button class="btn-submit-tournament" type="button" id="btn-submit" data-i18n="strategies.detail.action.submit">Submit to tournament</button>
+              </div>
+
+              <p id="detail-msg" class="validation-msg" hidden></p>
+            </div>
+          </div>
+
+          <!-- Right panel : profile + tests -->
+          <div class="strategies-right">
+            <div class="playground-card profile-card">
+              <div class="pg-card-head">
+                <h3 class="pg-card-title" data-i18n="strategies.profile.title">Agent profile</h3>
+              </div>
+              <div id="profile-content" hidden>
+                <div class="profile-radar-wrap">
+                  <canvas id="profile-radar"></canvas>
+                </div>
+              </div>
+              <div id="profile-empty" class="profile-empty">
+                <div data-i18n="strategies.profile.placeholder">Run benchmarks to compute your agent's profile.</div>
+                <button id="btn-run-benchmarks" class="btn-launch" type="button" data-i18n="strategies.profile.run">Run benchmarks</button>
+              </div>
+            </div>
+
+            <div class="playground-card tests-card">
+              <div class="pg-card-head">
+                <h3 class="pg-card-title" data-i18n="strategies.tests.title">Quick tests</h3>
+              </div>
+              <ul id="tests-list" class="tests-list"></ul>
+              <div id="tests-empty" class="tests-empty" data-i18n="strategies.tests.empty">No tests yet.</div>
+            </div>
+          </div>
+
+        </section>
+
+        <div class="tip-bar">
+          <div class="tip-bar-content">
+            <span class="tip-bar-icon">💡</span>
+            <span data-i18n="strategies.tip">Tip: A good agent knows how to cooperate, defend itself, and forgive at the right moment.</span>
+          </div>
+        </div>
+
+        <p id="loading-banner" class="loading-banner" hidden>
+          <span class="dot"></span>
+          <span data-i18n="loading.pyodide">Loading Python environment (Pyodide) — about 10 s on first load…</span>
+        </p>
+      </main>
+
+      <!-- Submit confirmation modal -->
+      <div id="submit-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true">
+          <div class="modal-head">
+            <h2 data-i18n="playground.submit.modal.title">Submit to the tournament</h2>
+            <button class="modal-close" type="button" data-modal-close>×</button>
+          </div>
+          <div class="modal-warning" data-i18n="playground.submit.modal.warning">
+            This is irreversible.
+          </div>
+          <label>
+            <span data-i18n="playground.submit.modal.name">Submission name</span>
+            <input type="text" id="submit-name" required />
+          </label>
+          <label class="modal-checkbox">
+            <input type="checkbox" id="submit-confirm-check" />
+            <span data-i18n="playground.submit.modal.confirm.checkbox">I understand this is final.</span>
+          </label>
+          <div class="modal-actions">
+            <button class="btn-cancel" type="button" data-modal-close data-i18n="playground.submit.modal.cancel">Cancel</button>
+            <button class="btn-submit-final" type="button" id="submit-confirm-btn" disabled data-i18n="playground.submit.modal.confirm">Submit definitively</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rename modal -->
+      <div id="rename-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true">
+          <div class="modal-head">
+            <h2 data-i18n="strategies.rename.modal.title">Rename strategy</h2>
+            <button class="modal-close" type="button" data-modal-close>×</button>
+          </div>
+          <label>
+            <span data-i18n="playground.save.modal.name">Strategy name</span>
+            <input type="text" id="rename-name" required />
+          </label>
+          <div class="modal-actions">
+            <button class="btn-cancel" type="button" data-modal-close data-i18n="playground.save.modal.cancel">Cancel</button>
+            <button class="btn-save" type="button" id="rename-confirm-btn" data-i18n="strategies.rename.modal.confirm">Rename</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module" src="js/i18n.js"></script>
+  <script type="module" src="js/strategies.js"></script>
+</body>
+</html>

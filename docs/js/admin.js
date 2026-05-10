@@ -85,7 +85,7 @@ async function refreshTournaments() {
           <span class="meta">${escapeHtml(meta)}</span>
         </div>
         <span class="badge ${statusBadge}">${escapeHtml(statusLabel)}</span>
-        <a href="teams.html?t=${encodeURIComponent(d.id)}" class="link-btn">${t("admin.teams")}</a>
+        <a href="tournament.html?t=${encodeURIComponent(d.id)}" class="link-btn">${t("admin.teams")}</a>
         <button data-id="${d.id}" class="del-btn" type="button">${t("admin.delete")}</button>
       </div>
     `;

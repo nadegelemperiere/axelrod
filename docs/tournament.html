@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tournaments · Axelrod</title>
+  <title>Tournament · Axelrod</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -27,7 +27,7 @@
       <nav class="sidebar-nav">
         <div class="sidebar-section admin-only" hidden>
           <p class="sidebar-section-label" data-i18n="sidebar.admin">Admin</p>
-          <a href="admin.html" class="sidebar-link" data-page="admin-tournaments">
+          <a href="admin.html" class="sidebar-link active" data-page="admin-tournaments">
             <img src="imgs/tournament.png" alt="" class="sidebar-icon" />
             <div class="sidebar-link-text">
               <div class="sidebar-link-title" data-i18n="sidebar.tournaments">Tournaments</div>
@@ -63,8 +63,9 @@
 
       <div class="content-header">
         <div>
-          <h1 data-i18n="admin.title">Tournaments</h1>
-          <p class="lede" data-i18n="admin.subtitle">Create and run class tournaments.</p>
+          <p class="card-kicker"><a href="admin.html" style="color: var(--muted);" data-i18n="tournament.back">← Tournaments</a></p>
+          <h1 id="t-title" data-i18n="tournament.title.fallback">Tournament</h1>
+          <p class="lede" id="t-meta"></p>
         </div>
       </div>
 
@@ -74,29 +75,23 @@
 
       <main id="main" hidden>
         <section class="card">
-          <h2 data-i18n="admin.create.title">Create a tournament</h2>
-          <form id="create-form">
+          <h2 data-i18n="tournament.add.title">Add a team</h2>
+          <form id="add-form">
             <label>
-              <span data-i18n="admin.create.name">Tournament name</span>
-              <input type="text" id="t-name" required maxlength="80" data-i18n-placeholder="admin.create.name.placeholder" placeholder="e.g. Axelrod Junior — June 2026">
+              <span data-i18n="tournament.add.label">Pick an unassigned team</span>
+              <select id="t-pick" required></select>
             </label>
-            <div class="row">
-              <label>
-                <span data-i18n="admin.create.turns">Rounds per match</span>
-                <input type="number" id="t-turns" value="30" min="5" max="200" required>
-              </label>
-              <label>
-                <span data-i18n="admin.create.noise">Noise level (0 to 0.5)</span>
-                <input type="number" id="t-noise" value="0" step="0.05" min="0" max="0.5" required>
-              </label>
-            </div>
-            <button type="submit" data-i18n="admin.create.submit">Create</button>
+            <p id="add-empty-hint" class="muted small" hidden data-i18n="tournament.add.empty">
+              No unassigned team available.
+            </p>
+            <button type="submit" id="add-btn" data-i18n="tournament.add.submit">Add to tournament</button>
+            <p id="add-msg" class="validation-msg" hidden></p>
           </form>
         </section>
 
         <section class="card">
-          <h2 data-i18n="admin.list.title">Existing tournaments</h2>
-          <ul id="t-list" class="t-list"></ul>
+          <h2 data-i18n="tournament.teams.title">Teams in this tournament</h2>
+          <ul id="teams-list" class="t-list"></ul>
         </section>
       </main>
 
@@ -104,6 +99,6 @@
   </div>
 
   <script type="module" src="js/i18n.js"></script>
-  <script type="module" src="js/admin.js"></script>
+  <script type="module" src="js/tournament.js"></script>
 </body>
 </html>

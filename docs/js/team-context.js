@@ -1,5 +1,10 @@
-// Shared loader for team pages (home + playground).
-// Handles auth gating, admin redirect, no-team state, and Firestore lookups.
+// Shared loader for team pages (home + playground + strategies).
+// Handles auth gating, admin redirect, and team/tournament lookup.
+//
+// Schema:
+//   /teams/{uid}                       — team doc (uid = auth uid)
+//     active_tournament_id             — current tournament (or null)
+//   /tournaments/{tid}                 — tournament metadata
 
 import { onAuth, isUserAdmin } from "./auth.js";
 import { db } from "./firebase-config.js";
@@ -11,7 +16,9 @@ import {
 /**
  * Loads the team context for the current user.
  * @param {Object} handlers
- * @param {(ctx: {uid, tournamentId, teamId, tournament, team}) => void} handlers.onLoaded
+ * @param {(ctx: {uid, teamId, tournamentId, tournament, team}) => void} handlers.onLoaded
+ *   tournamentId may be null if the team has no active tournament.
+ *   tournament may be null if the team has no active tournament.
  * @param {() => void} [handlers.onNoTeam]
  */
 export function loadTeamContext({ onLoaded, onNoTeam }) {
@@ -26,26 +33,26 @@ export function loadTeamContext({ onLoaded, onNoTeam }) {
       return;
     }
 
-    const userDoc = await getDoc(doc(db, "users", user.uid));
-    if (!userDoc.exists()) {
+    const teamSnap = await getDoc(doc(db, "teams", user.uid));
+    if (!teamSnap.exists()) {
       onNoTeam?.();
       return;
     }
-    const { tournament_id, team_id } = userDoc.data();
-    const [tSnap, teamSnap] = await Promise.all([
-      getDoc(doc(db, "tournaments", tournament_id)),
-      getDoc(doc(db, "tournaments", tournament_id, "teams", team_id))
-    ]);
-    if (!tSnap.exists() || !teamSnap.exists()) {
-      onNoTeam?.();
-      return;
+    const teamData = teamSnap.data();
+    const tournamentId = teamData.active_tournament_id || null;
+
+    let tournament = null;
+    if (tournamentId) {
+      const tSnap = await getDoc(doc(db, "tournaments", tournamentId));
+      if (tSnap.exists()) tournament = tSnap.data();
     }
+
     onLoaded({
       uid: user.uid,
-      tournamentId: tournament_id,
-      teamId: team_id,
-      tournament: tSnap.data(),
-      team: teamSnap.data()
+      teamId: user.uid,        // alias: uid IS teamId now
+      tournamentId,
+      tournament,
+      team: teamData
     });
   });
 }

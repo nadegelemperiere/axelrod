@@ -99,22 +99,30 @@ L'arène de test tourne entièrement dans le navigateur via **Pyodide** (~10 s �
 ```
 /admins/{uid}                          # UIDs admin (un doc par admin)
 
-/users/{uid}                           # Mapping uid → équipe assignée (Sprint 2)
-  fields:
-    tournament_id, team_id, assigned_at
+/teams/{uid}                           # Équipes top-level — uid = UID Firebase Auth
+  fields:                                du compte partagé par les 2 élèves
+    display_name, emoji,
+    active_tournament_id (nullable),
+    created_at
 
-/tournaments/{tournamentId}            # Tournois
+  /strategies/{strategyId}             # Bibliothèque persistante de l'équipe,
+    fields:                              survit aux changements de tournoi
+      name, description, code,
+      validation_status, validation_message,
+      created_at, updated_at, last_submitted_at,
+      benchmark_results, benchmark_score, benchmark_coop, benchmark_profile
+
+/tournaments/{tournamentId}            # Tournois (métadonnées seulement)
   fields:
-    name, nb_turns, noise_level, phase, status (open_submission|running|completed),
+    name, nb_turns, noise_level, phase, status,
     created_at, updated_at
 
-  /teams/{teamId}                      # Équipes (Sprint 2)
+  /bots/{botId}                        # Soumissions au tournoi
     fields:
-      display_name, emoji, uid_owner, bot_status, latest_bot_id, created_at
-
-    /bots/{botId}                      # Versions de bots soumises (Sprint 2)
-      fields:
-        code, submitted_at, validation_status, validation_message
+      team_id (= uid),                   # quelle équipe a soumis
+      strategy_id (nullable),            # lien vers la stratégie source
+      name, code, submitted_at,
+      validation_status, validation_message
 
   /matches/{matchId}                   # Matches (Sprint 3, écrits par CF)
     fields:
@@ -125,6 +133,8 @@ L'arène de test tourne entièrement dans le navigateur via **Pyodide** (~10 s �
     fields:
       scores: { teamId: totalScore, ... }, updated_at
 ```
+
+Schéma simplifié depuis le Sprint Strategies : les **équipes existent indépendamment des tournois** (top-level `/teams/{uid}`), avec `active_tournament_id` qui pointe vers le tournoi courant (ou null). Plus de collection `/users/{uid}` — la team se trouve directement à `/teams/{user.uid}`. Les **stratégies** sont une sous-collection de l'équipe et persistent à travers tous les tournois.
 
 ## Structure du repo
 
