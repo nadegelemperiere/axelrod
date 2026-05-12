@@ -117,12 +117,16 @@ L'arène de test tourne entièrement dans le navigateur via **Pyodide** (~10 s �
     name, nb_turns, noise_level, phase, status,
     created_at, updated_at
 
-  /bots/{botId}                        # Soumissions au tournoi
-    fields:
-      team_id (= uid),                   # quelle équipe a soumis
-      strategy_id (nullable),            # lien vers la stratégie source
-      name, code, submitted_at,
-      validation_status, validation_message
+  /teams/{teamId}                      # Participation d'une équipe au tournoi
+    fields:                              (teamId = UID de l'équipe)
+      registered_at,                     # quand admin a inscrit l'équipe
+      # Bot soumis — présent ssi l'équipe a soumis (1 par tournoi max)
+      bot_code,
+      bot_name,
+      bot_submitted_at,
+      bot_validation_status (ok | error),
+      bot_validation_message,
+      bot_strategy_id                    # lien vers la stratégie source
 
   /matches/{matchId}                   # Matches (Sprint 3, écrits par CF)
     fields:
@@ -134,7 +138,28 @@ L'arène de test tourne entièrement dans le navigateur via **Pyodide** (~10 s �
       scores: { teamId: totalScore, ... }, updated_at
 ```
 
-Schéma simplifié depuis le Sprint Strategies : les **équipes existent indépendamment des tournois** (top-level `/teams/{uid}`), avec `active_tournament_id` qui pointe vers le tournoi courant (ou null). Plus de collection `/users/{uid}` — la team se trouve directement à `/teams/{user.uid}`. Les **stratégies** sont une sous-collection de l'équipe et persistent à travers tous les tournois.
+**Invariants** (état actuel du schéma) :
+- **Équipes top-level** dans `/teams/{uid}` — doc ID = UID Firebase Auth du compte de l'équipe. Plus de mapping intermédiaire `/users`.
+- **Multi-tournoi** : une équipe peut être inscrite à plusieurs tournois en parallèle. La présence d'un doc `/tournaments/{tid}/teams/{uid}` matérialise l'inscription. Plus de champ `active_tournament_id` sur l'équipe.
+- **Bot ⊂ participation** : le bot soumis est encodé comme des champs `bot_*` sur le doc de participation, pas dans une collection séparée. Contrainte 1:1 portée par le schéma (un seul bot par équipe par tournoi).
+- **Stratégies persistantes** : la bibliothèque `/teams/{uid}/strategies` survit aux changements de tournoi.
+- **Pas de dénormalisation** : le doc de participation ne stocke pas l'identité de l'équipe (lu depuis `/teams/{uid}`), une stratégie soumise ne stocke pas le nom du tournoi (lu depuis `/tournaments/{tid}.name`). Seul l'**ID** est référencé.
+
+## Schema changes (changelog)
+
+Historique des évolutions de schéma (le plus récent en premier). Voir aussi le bloc commentaire en tête de `firestore.rules`.
+
+| Date | Change | Rationale |
+|---|---|---|
+| 2026-05-11 | Multi-tournoi : drop `active_tournament_id` sur `/teams`, source de vérité = présence de `/tournaments/{tid}/teams/{uid}`. Ajout du champ `team_id` dénormalisé sur la participation pour collection group query. Admin-only sur create. | Une équipe peut désormais participer à plusieurs tournois en parallèle. |
+| 2026-05-11 | Suppression de `last_submitted_tournament_name` sur les stratégies (dénormalisation retirée). Le nom est relu live depuis `/tournaments/{id}.name`. | Eviter les noms zombies si l'admin renomme un tournoi. |
+| 2026-05-10 | Refactor bot model : drop de la collection `/tournaments/{tid}/bots/{botId}`. Le bot soumis devient des champs `bot_code`, `bot_name`, `bot_submitted_at`, `bot_validation_*`, `bot_strategy_id` sur `/tournaments/{tid}/teams/{teamId}`. | "Une équipe a 0 ou 1 bot dans ce tournoi" → contrainte 1:1 portée par le schéma au lieu d'une query unique côté UI. |
+| 2026-05-10 | "Strategy locked" : champ `last_submitted_at` sur `/teams/{uid}/strategies/{id}` = marqueur immutable. Une fois soumise, la stratégie ne peut plus être modifiée. | Soumission finale, history de la stratégie figé. |
+| 2026-05-09 | `/teams` promu top-level (doc ID = UID Auth). Drop de la collection `/users` (servait juste de mapping uid → équipe, devenu redondant). Strategies déplacées sous `/teams/{uid}/strategies` (persistance cross-tournoi). | Équipes indépendantes des tournois ; bibliothèque de stratégies survit aux changements de tournoi. |
+| 2026-05-08 | Ajout de `/tournaments/{tid}/teams/{teamId}/strategies` (avant le refactor de schéma) — première implémentation de la bibliothèque de stratégies. | Sprint Strategies. |
+| 2026-05-07 | Schéma initial : `/admins`, `/users` (mapping), `/tournaments/{tid}/teams/{teamId}/bots/{botId}`. | Sprint 1-2 initial. |
+
+Quand on touche aux rules → ajouter une ligne dans le commentaire en tête de `firestore.rules` (résumé court) ET dans cette table (détails + rationale). Déployer avec `firebase deploy --only firestore`. Firebase tracke aussi automatiquement chaque révision déployée (Console → Firestore → Rules → Version history) si besoin de rollback.
 
 ## Structure du repo
 

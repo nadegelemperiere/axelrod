@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body data-page="admin-tournaments">
+<body data-page="admin-tournaments" class="dense">
 
   <div class="app">
 
@@ -61,12 +61,11 @@
 
     <div class="content">
 
-      <div class="content-header">
+      <div class="content-header content-header-row">
         <div>
           <p class="card-kicker"><a href="admin.html" style="color: var(--muted);" data-i18n="tournament.back">← Tournaments</a></p>
-          <h1 id="t-title" data-i18n="tournament.title.fallback">Tournament</h1>
-          <p class="lede" id="t-meta"></p>
         </div>
+        <a href="#" id="view-analysis-link" class="primary-cta" hidden data-i18n="tournament.admin.view_analysis">View analysis</a>
       </div>
 
       <p id="access-denied" class="access-denied" hidden data-i18n="access.denied">
@@ -74,26 +73,193 @@
       </p>
 
       <main id="main" hidden>
-        <section class="card">
-          <h2 data-i18n="tournament.add.title">Add a team</h2>
-          <form id="add-form">
-            <label>
-              <span data-i18n="tournament.add.label">Pick an unassigned team</span>
-              <select id="t-pick" required></select>
-            </label>
-            <p id="add-empty-hint" class="muted small" hidden data-i18n="tournament.add.empty">
-              No unassigned team available.
-            </p>
-            <button type="submit" id="add-btn" data-i18n="tournament.add.submit">Add to tournament</button>
-            <p id="add-msg" class="validation-msg" hidden></p>
-          </form>
+
+        <!-- ===== Hero header ===== -->
+        <section class="card t-hero">
+          <div class="t-hero-left">
+            <div class="t-hero-titlerow">
+              <h1 class="t-hero-name" id="t-title">—</h1>
+              <span class="badge t-hero-phase" id="t-phase">PHASE 1</span>
+              <span class="badge t-hero-status" id="t-status">—</span>
+            </div>
+            <p class="t-hero-params muted" id="t-meta">—</p>
+            <p class="t-hero-id muted small" id="t-id">—</p>
+          </div>
+
+          <div class="t-hero-mid" title="">
+            <svg class="t-hero-donut" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(95,227,216,0.12)" stroke-width="10" />
+              <circle id="t-hero-donut-arc" cx="60" cy="60" r="48" fill="none" stroke="#5fe3d8" stroke-width="10" stroke-linecap="round" stroke-dasharray="0 999" transform="rotate(-90 60 60)" />
+            </svg>
+            <div class="t-hero-donut-center">
+              <div class="t-hero-donut-num" id="t-hero-count">0/0</div>
+              <div class="t-hero-donut-label muted small" data-i18n="tournament.hero.ready">ready</div>
+            </div>
+          </div>
+
+          <div class="t-hero-right">
+            <button type="button" id="launch-btn" class="t-hero-launch" data-i18n="tournament.launch.button">🚀 Launch tournament</button>
+            <button type="button" id="run-matches-btn" class="t-hero-launch" hidden data-i18n="tournament.run.button">Run matches</button>
+            <p id="launch-msg" class="validation-msg" hidden></p>
+            <p id="run-msg" class="validation-msg" hidden></p>
+            <div id="run-progress" hidden style="margin-top: 0.5rem;">
+              <p id="run-progress-label" class="muted small" style="margin-bottom: 0.3rem;"></p>
+              <div style="height: 5px; background: rgba(95,227,216,0.12); border-radius: 3px; overflow: hidden;">
+                <div id="run-progress-bar" style="height: 100%; width: 0%; background: #5fe3d8; transition: width 0.2s;"></div>
+              </div>
+            </div>
+          </div>
         </section>
 
-        <section class="card">
-          <h2 data-i18n="tournament.teams.title">Teams in this tournament</h2>
-          <ul id="teams-list" class="t-list"></ul>
+        <!-- ===== Stat tiles ===== -->
+        <section class="stat-row">
+          <div class="stat-tile">
+            <span class="stat-tile-icon" style="color:#5fe3d8">👥</span>
+            <div class="stat-tile-body">
+              <div class="stat-tile-num" id="stat-teams">0</div>
+              <div class="stat-tile-label" data-i18n="tournament.stat.teams">Teams</div>
+              <div class="stat-tile-sub" id="stat-teams-sub">—</div>
+            </div>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-tile-icon" style="color:#b29eff">🧠</span>
+            <div class="stat-tile-body">
+              <div class="stat-tile-num" id="stat-bots">0</div>
+              <div class="stat-tile-label" data-i18n="tournament.stat.bots">Bots submitted</div>
+              <div class="stat-tile-sub" id="stat-bots-sub">—</div>
+            </div>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-tile-icon" style="color:#7ddca0">✓</span>
+            <div class="stat-tile-body">
+              <div class="stat-tile-num" id="stat-valid">0</div>
+              <div class="stat-tile-label" data-i18n="tournament.stat.valid">Valid bots</div>
+              <div class="stat-tile-sub" id="stat-valid-sub">—</div>
+            </div>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-tile-icon" style="color:#ff7676">⚠️</span>
+            <div class="stat-tile-body">
+              <div class="stat-tile-num" id="stat-issues">0</div>
+              <div class="stat-tile-label" data-i18n="tournament.stat.issues">Validation issues</div>
+              <div class="stat-tile-sub" id="stat-issues-sub" data-i18n="tournament.stat.issues.sub">needs attention</div>
+            </div>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-tile-icon" style="color:#f5b942">⏳</span>
+            <div class="stat-tile-body">
+              <div class="stat-tile-num" id="stat-pending">0</div>
+              <div class="stat-tile-label" data-i18n="tournament.stat.pending">Awaiting bot</div>
+              <div class="stat-tile-sub" data-i18n="tournament.stat.pending.sub">teams without code</div>
+            </div>
+          </div>
         </section>
+
+        <!-- ===== Two-column body : teams + sidebar ===== -->
+        <div class="t-body">
+
+          <section class="card t-teams-card">
+            <div class="t-teams-head">
+              <h3 class="card-section-title small">
+                <span data-i18n="tournament.teams.participating">Participating teams</span>
+                <span class="muted">(<span id="t-teams-count">0</span>)</span>
+              </h3>
+              <div class="t-teams-tools">
+                <label class="filter-search">
+                  <span class="filter-search-icon">🔎</span>
+                  <input type="text" id="t-teams-search" data-i18n-placeholder="tournament.teams.search" placeholder="Search teams…" />
+                </label>
+                <button type="button" id="open-add-btn" class="primary-cta small-cta">+ <span data-i18n="tournament.add.submit">Add team</span></button>
+              </div>
+            </div>
+
+            <ul id="teams-list" class="t-teams-list"></ul>
+
+            <p id="teams-empty" class="muted small" hidden style="text-align:center; padding: 1rem 0;" data-i18n="tournament.teams.empty">No team registered yet.</p>
+          </section>
+
+          <aside class="t-sidebar">
+            <div class="card t-flow-card">
+              <h3 class="card-section-title small" data-i18n="tournament.flow.title">Tournament flow</h3>
+              <ol class="t-flow-steps" id="t-flow-steps"></ol>
+            </div>
+
+            <div class="card t-settings-card">
+              <h3 class="card-section-title small" data-i18n="tournament.settings.title">Settings</h3>
+              <ul class="match-stats" id="t-settings-list"></ul>
+            </div>
+          </aside>
+
+        </div>
+
       </main>
+
+      <!-- ===== Add team modal ===== -->
+      <div id="add-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true" style="max-width: 460px;">
+          <div class="modal-head">
+            <h2 data-i18n="tournament.add.title">Add a team</h2>
+            <button class="modal-close" type="button" data-modal-close>×</button>
+          </div>
+          <div class="modal-section">
+            <form id="add-form">
+              <label>
+                <span data-i18n="tournament.add.label">Pick an unassigned team</span>
+                <select id="t-pick" required></select>
+              </label>
+              <p id="add-empty-hint" class="muted small" hidden data-i18n="tournament.add.empty">
+                No unassigned team available.
+              </p>
+              <p id="add-msg" class="validation-msg" hidden></p>
+              <div style="display:flex; gap:0.6rem; justify-content:flex-end; margin-top: 0.85rem;">
+                <button type="button" data-modal-close data-i18n="modal.cancel">Cancel</button>
+                <button type="submit" id="add-btn" data-i18n="tournament.add.submit">Add to tournament</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Launch confirmation modal -->
+      <div id="launch-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true" style="max-width: 560px;">
+          <div class="modal-head">
+            <h2 data-i18n="tournament.launch.modal.title">Launch tournament</h2>
+            <button class="modal-close" type="button" data-modal-close>×</button>
+          </div>
+          <div class="modal-section">
+            <p id="launch-modal-ready" data-i18n="tournament.launch.modal.all_ready" hidden>All teams have submitted a bot. The tournament will start now.</p>
+            <p id="launch-modal-missing-intro" hidden></p>
+            <ul id="launch-modal-missing-list" style="margin: 0.6rem 0 1rem 1.25rem;"></ul>
+            <label style="display: flex; gap: 0.5rem; align-items: flex-start; cursor: pointer;">
+              <input type="checkbox" id="launch-confirm-check" />
+              <span data-i18n="tournament.launch.modal.confirm_check">I confirm that I want to launch the tournament now.</span>
+            </label>
+            <div style="display: flex; gap: 0.6rem; justify-content: flex-end; margin-top: 1.25rem;">
+              <button type="button" data-modal-close data-i18n="modal.cancel">Cancel</button>
+              <button type="button" id="launch-confirm-btn" disabled data-i18n="tournament.launch.modal.confirm_btn">Launch</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bot preview modal -->
+      <div id="bot-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true" style="max-width: 720px;">
+          <div class="modal-head">
+            <h2 id="bot-modal-title">Bot</h2>
+            <button class="modal-close" type="button" data-modal-close>×</button>
+          </div>
+          <div class="modal-section">
+            <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.85rem;">
+              <span class="badge" id="bot-modal-status"></span>
+              <span class="muted small" id="bot-modal-submitted"></span>
+            </div>
+            <p id="bot-modal-validation" class="muted small" style="margin-bottom: 0.85rem;" hidden></p>
+            <pre id="bot-modal-code" class="strategy-code-preview"></pre>
+          </div>
+        </div>
+      </div>
 
     </div>
   </div>

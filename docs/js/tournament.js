@@ -5,11 +5,11 @@ import { db } from "./firebase-config.js";
 import {
   doc,
   getDoc,
+  setDoc,
   updateDoc,
+  deleteDoc,
   collection,
   getDocs,
-  query,
-  where,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
@@ -19,14 +19,75 @@ const els = {
   accessDenied: document.getElementById("access-denied"),
   main: document.getElementById("main"),
   tTitle: document.getElementById("t-title"),
+  tPhase: document.getElementById("t-phase"),
+  tStatus: document.getElementById("t-status"),
   tMeta: document.getElementById("t-meta"),
+  tId: document.getElementById("t-id"),
+  tHeroCount: document.getElementById("t-hero-count"),
+  tHeroDonutArc: document.getElementById("t-hero-donut-arc"),
+
+  launchBtn: document.getElementById("launch-btn"),
+  launchMsg: document.getElementById("launch-msg"),
+  runBtn: document.getElementById("run-matches-btn"),
+  runMsg: document.getElementById("run-msg"),
+  runProgress: document.getElementById("run-progress"),
+  runProgressLabel: document.getElementById("run-progress-label"),
+  runProgressBar: document.getElementById("run-progress-bar"),
+
+  // Stat tiles
+  statTeams: document.getElementById("stat-teams"),
+  statTeamsSub: document.getElementById("stat-teams-sub"),
+  statBots: document.getElementById("stat-bots"),
+  statBotsSub: document.getElementById("stat-bots-sub"),
+  statValid: document.getElementById("stat-valid"),
+  statValidSub: document.getElementById("stat-valid-sub"),
+  statIssues: document.getElementById("stat-issues"),
+  statPending: document.getElementById("stat-pending"),
+
+  // Teams list
+  teamsCount: document.getElementById("t-teams-count"),
+  teamsList: document.getElementById("teams-list"),
+  teamsEmpty: document.getElementById("teams-empty"),
+  teamsSearch: document.getElementById("t-teams-search"),
+
+  // Sidebar
+  flowSteps: document.getElementById("t-flow-steps"),
+  settingsList: document.getElementById("t-settings-list"),
+
+  // Modals
+  openAddBtn: document.getElementById("open-add-btn"),
+  addModal: document.getElementById("add-modal"),
   addForm: document.getElementById("add-form"),
   addBtn: document.getElementById("add-btn"),
   addMsg: document.getElementById("add-msg"),
   addEmptyHint: document.getElementById("add-empty-hint"),
   pick: document.getElementById("t-pick"),
-  teamsList: document.getElementById("teams-list")
+
+  botModal: document.getElementById("bot-modal"),
+  botModalTitle: document.getElementById("bot-modal-title"),
+  botModalStatus: document.getElementById("bot-modal-status"),
+  botModalSubmitted: document.getElementById("bot-modal-submitted"),
+  botModalValidation: document.getElementById("bot-modal-validation"),
+  botModalCode: document.getElementById("bot-modal-code"),
+
+  launchModal: document.getElementById("launch-modal"),
+  launchModalReady: document.getElementById("launch-modal-ready"),
+  launchModalMissingIntro: document.getElementById("launch-modal-missing-intro"),
+  launchModalMissingList: document.getElementById("launch-modal-missing-list"),
+  launchConfirmCheck: document.getElementById("launch-confirm-check"),
+  launchConfirmBtn: document.getElementById("launch-confirm-btn"),
+
+  viewAnalysisLink: document.getElementById("view-analysis-link")
 };
+
+// Latest bot data per team for inspection modal: { teamId: botData }
+const latestBotByTeam = {};
+// Teams in the tournament without a submitted bot.
+let teamsWithoutBot = [];
+// All registered teams enriched with team identity + bot data.
+let teamsData = [];
+
+let pyodide = null;
 
 const params = new URLSearchParams(window.location.search);
 const tournamentId = params.get("t");
@@ -34,6 +95,10 @@ const tournamentId = params.get("t");
 if (!tournamentId) {
   alert(t("teams.alert.no.tid"));
   window.location.href = "admin.html";
+}
+
+if (els.viewAnalysisLink) {
+  els.viewAnalysisLink.href = `tournament-view.html?t=${encodeURIComponent(tournamentId)}`;
 }
 
 let tournamentData = null;
@@ -55,32 +120,124 @@ onAuth(async (user) => {
     return;
   }
   tournamentData = tSnap.data();
-  renderHeader();
+  // Completed tournaments → redirect to analysis.
+  if (tournamentData.status === "completed") {
+    window.location.href = `tournament-view.html?t=${encodeURIComponent(tournamentId)}`;
+    return;
+  }
   els.main.hidden = false;
   await Promise.all([refreshAvailable(), refreshTeams()]);
+  renderHero();
+  renderFlow();
+  renderSettings();
+  updateStatusUI();
 });
 
-function renderHeader() {
+// ---------- Hero header ----------
+function renderHero() {
   if (!tournamentData) return;
   els.tTitle.textContent = tournamentData.name;
-  els.tMeta.textContent = t("tournament.meta", {
-    phase: tournamentData.phase,
+  els.tPhase.textContent = t("tournament.hero.phase", { n: tournamentData.phase || 1 });
+  const status = tournamentData.status || "open_submission";
+  els.tStatus.textContent = t(`admin.status.${status}`).toUpperCase();
+  els.tStatus.className = "badge t-hero-status " + statusBadgeClass(status);
+  els.tMeta.textContent = t("tournament.hero.params", {
     turns: tournamentData.nb_turns,
-    noise: (tournamentData.noise_level * 100).toFixed(0),
-    status: t(`admin.status.${tournamentData.status}`)
+    noise: (tournamentData.noise_level * 100).toFixed(0)
   });
+  els.tId.textContent = t("tournament.hero.id", { id: tournamentId });
 }
 
+function statusBadgeClass(s) {
+  if (s === "running") return "live";
+  if (s === "completed") return "ok";
+  return "warn";
+}
+
+// Donut shows tournament readiness : number of teams with a validated bot
+// over total registered teams. Arc full ⇒ ready to launch.
+function renderHeroDonut(ready, total) {
+  els.tHeroCount.textContent = `${ready}/${total}`;
+  const fraction = total > 0 ? Math.min(1, ready / total) : 0;
+  const circumference = 2 * Math.PI * 48;
+  const dash = fraction * circumference;
+  els.tHeroDonutArc.setAttribute("stroke-dasharray", `${dash} ${circumference - dash}`);
+}
+
+// ---------- Tournament flow stepper ----------
+function renderFlow() {
+  const status = tournamentData?.status || "open_submission";
+  const steps = [
+    { key: "open_submission", icon: "🔓", label: t("tournament.flow.open"), sub: t("tournament.flow.open.sub") },
+    { key: "running", icon: "▶", label: t("tournament.flow.running"), sub: t("tournament.flow.running.sub") },
+    { key: "completed", icon: "🏆", label: t("tournament.flow.completed"), sub: t("tournament.flow.completed.sub") }
+  ];
+  const order = ["open_submission", "running", "completed"];
+  const idx = order.indexOf(status);
+  els.flowSteps.innerHTML = steps.map((s, i) => {
+    const cls = i < idx ? "done" : i === idx ? "current" : "pending";
+    return `
+      <li class="t-flow-step ${cls}">
+        <span class="t-flow-icon">${s.icon}</span>
+        <div class="t-flow-body">
+          <div class="t-flow-label">${escapeHtml(s.label)}</div>
+          <div class="t-flow-sub muted small">${escapeHtml(s.sub)}</div>
+        </div>
+      </li>
+    `;
+  }).join("");
+}
+
+// ---------- Settings sidebar ----------
+function renderSettings() {
+  if (!tournamentData) return;
+  const locale = document.documentElement.lang === "fr" ? "fr-FR" : "en-GB";
+  const fmt = (ts) => ts?.toDate?.()?.toLocaleString(locale) || "—";
+  const rows = [
+    { label: t("tournament.view.settings.turns"), value: tournamentData.nb_turns ?? "—" },
+    { label: t("tournament.view.settings.noise"), value: `${(tournamentData.noise_level * 100).toFixed(0)}%` },
+    { label: t("tournament.view.settings.phase"), value: tournamentData.phase ?? "—" },
+    { label: t("tournament.settings.matching"), value: t("tournament.settings.matching.round_robin") },
+    { label: t("tournament.view.settings.created_at"), value: fmt(tournamentData.created_at) }
+  ];
+  if (tournamentData.launched_at) rows.push({ label: t("tournament.view.settings.launched_at"), value: fmt(tournamentData.launched_at) });
+  els.settingsList.innerHTML = rows.map((r) => `
+    <li><span class="match-stat-label">${escapeHtml(r.label)}</span><span class="match-stat-value">${escapeHtml(String(r.value))}</span></li>
+  `).join("");
+}
+
+// ---------- Status-driven UI ----------
+function updateStatusUI() {
+  const status = tournamentData?.status || "open_submission";
+  // open_submission → Launch button.
+  // running → Run matches button.
+  els.launchBtn.hidden = status !== "open_submission";
+  els.runBtn.hidden = status !== "running";
+
+  if (status === "open_submission") {
+    const hasTeams = teamsData.length > 0;
+    els.launchBtn.disabled = !hasTeams;
+  }
+  if (status === "running") {
+    const validCount = teamsData.filter((tm) => tm.botValidationStatus === "ok").length;
+    els.runBtn.disabled = validCount < 2;
+  }
+
+  // Analysis link only when launched
+  if (els.viewAnalysisLink) els.viewAnalysisLink.hidden = status === "open_submission";
+}
+
+// ---------- Available teams (for add modal dropdown) ----------
 async function refreshAvailable() {
-  // Teams not yet in any tournament (active_tournament_id == null OR missing)
+  const partsSnap = await getDocs(collection(db, "tournaments", tournamentId, "teams"));
+  const alreadyIn = new Set();
+  partsSnap.forEach((d) => alreadyIn.add(d.id));
+
   const teamsRef = collection(db, "teams");
   const snap = await getDocs(teamsRef);
   const available = [];
   snap.forEach((d) => {
-    const data = d.data();
-    if (!data.active_tournament_id) {
-      available.push({ id: d.id, ...data });
-    }
+    if (!alreadyIn.has(d.id)) available.push({ id: d.id, ...d.data() });
   });
   available.sort((a, b) => (a.display_name || "").localeCompare(b.display_name || ""));
 
@@ -89,101 +246,153 @@ async function refreshAvailable() {
     els.pick.disabled = true;
     els.addBtn.disabled = true;
     els.addEmptyHint.hidden = false;
-    return;
-  }
-  els.pick.disabled = false;
-  els.addBtn.disabled = false;
-  els.addEmptyHint.hidden = true;
-  for (const team of available) {
-    const opt = document.createElement("option");
-    opt.value = team.id;
-    opt.textContent = `${team.emoji ? team.emoji + " " : ""}${team.display_name}`;
-    els.pick.appendChild(opt);
+  } else {
+    els.pick.disabled = false;
+    els.addBtn.disabled = false;
+    els.addEmptyHint.hidden = true;
+    for (const team of available) {
+      const opt = document.createElement("option");
+      opt.value = team.id;
+      opt.textContent = `${team.emoji ? team.emoji + " " : ""}${team.display_name}`;
+      els.pick.appendChild(opt);
+    }
   }
 }
 
-els.addForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  els.addMsg.hidden = true;
-  const teamId = els.pick.value;
-  if (!teamId) return;
-  els.addBtn.disabled = true;
-  try {
-    await updateDoc(doc(db, "teams", teamId), {
-      active_tournament_id: tournamentId
-    });
-    showMsg(els.addMsg, true, t("teams.add.success", { name: els.pick.options[els.pick.selectedIndex].textContent.trim() }));
-    await Promise.all([refreshAvailable(), refreshTeams()]);
-  } catch (err) {
-    console.error(err);
-    showMsg(els.addMsg, false, t("teams.add.error", { msg: err.message || err }));
-  } finally {
-    els.addBtn.disabled = false;
-  }
-});
-
+// ---------- Teams list ----------
 async function refreshTeams() {
-  const teamsRef = collection(db, "teams");
-  const q = query(teamsRef, where("active_tournament_id", "==", tournamentId));
-  const snap = await getDocs(q);
-  els.teamsList.innerHTML = "";
-  if (snap.empty) {
-    const li = document.createElement("li");
-    li.className = "empty";
-    li.textContent = t("tournament.teams.empty");
-    els.teamsList.appendChild(li);
+  const partsSnap = await getDocs(collection(db, "tournaments", tournamentId, "teams"));
+  for (const k of Object.keys(latestBotByTeam)) delete latestBotByTeam[k];
+  teamsWithoutBot = [];
+  teamsData = [];
+
+  if (partsSnap.empty) {
+    els.teamsList.innerHTML = "";
+    els.teamsEmpty.hidden = false;
+    els.teamsCount.textContent = "0";
+    renderStats();
+    renderHeroDonut(0, 0);
+    updateStatusUI();
     return;
   }
+  els.teamsEmpty.hidden = true;
 
-  const teams = [];
-  snap.forEach((d) => teams.push({ id: d.id, ...d.data() }));
-  teams.sort((a, b) => {
-    const at = a.created_at?.toMillis?.() ?? 0;
-    const bt = b.created_at?.toMillis?.() ?? 0;
-    return at - bt;
+  const parts = [];
+  partsSnap.forEach((d) => parts.push({ id: d.id, ...d.data() }));
+  parts.sort((a, b) => (a.registered_at?.toMillis?.() ?? 0) - (b.registered_at?.toMillis?.() ?? 0));
+
+  const teamDocs = await Promise.all(parts.map((p) => getDoc(doc(db, "teams", p.id))));
+
+  teamsData = parts.map((p, i) => {
+    const teamDoc = teamDocs[i];
+    const t = teamDoc.exists() ? teamDoc.data() : { display_name: p.id, emoji: "", email: "" };
+    if (p.bot_code) {
+      latestBotByTeam[p.id] = {
+        code: p.bot_code,
+        name: p.bot_name,
+        submitted_at: p.bot_submitted_at,
+        validation_status: p.bot_validation_status,
+        validation_message: p.bot_validation_message
+      };
+    } else {
+      teamsWithoutBot.push({ id: p.id, display_name: t.display_name, emoji: t.emoji });
+    }
+    return {
+      id: p.id,
+      display_name: t.display_name,
+      emoji: t.emoji,
+      email: t.email,
+      hasBot: !!p.bot_code,
+      botName: p.bot_name,
+      botValidationStatus: p.bot_validation_status,
+      botSubmittedAt: p.bot_submitted_at
+    };
   });
 
-  // Count this tournament's bots per team
-  const botsSnap = await getDocs(collection(db, "tournaments", tournamentId, "bots"));
-  const counts = {};
-  botsSnap.forEach((b) => {
-    const data = b.data();
-    const tid = data.team_id;
-    if (!tid) return;
-    if (!counts[tid]) counts[tid] = { total: 0, valid: 0 };
-    counts[tid].total += 1;
-    if (data.validation_status === "ok") counts[tid].valid += 1;
-  });
+  els.teamsCount.textContent = teamsData.length;
+  renderTeamsList();
+  renderStats();
+  const readyCount = teamsData.filter((tm) => tm.botValidationStatus === "ok").length;
+  renderHeroDonut(readyCount, teamsData.length);
+  updateStatusUI();
+}
 
-  teams.forEach((team) => {
-    const c = counts[team.id] || { total: 0, valid: 0 };
-    const hue = teamHue(team.display_name);
+function renderTeamsList() {
+  const q = (els.teamsSearch.value || "").trim().toLowerCase();
+  const filtered = q
+    ? teamsData.filter((tm) => (tm.display_name || "").toLowerCase().includes(q))
+    : teamsData;
+
+  els.teamsList.innerHTML = "";
+  for (const tm of filtered) {
+    let statusLabel, statusClass, statusSub;
+    if (!tm.hasBot) {
+      statusLabel = t("teams.card.status.pending");
+      statusClass = "warn";
+      statusSub = t("tournament.team.row.no_bot");
+    } else if (tm.botValidationStatus === "ok") {
+      statusLabel = t("tournament.team.row.ready");
+      statusClass = "ok";
+      statusSub = t("tournament.team.row.all_good");
+    } else {
+      statusLabel = t("teams.card.status.warning");
+      statusClass = "ko";
+      statusSub = t("tournament.team.row.invalid_bot");
+    }
+
+    const locale = document.documentElement.lang === "fr" ? "fr-FR" : "en-GB";
+    const subm = tm.botSubmittedAt?.toDate?.();
+    const submStr = subm ? subm.toLocaleString(locale, { dateStyle: "short", timeStyle: "short" }) : "—";
+    const submRel = subm ? relativeTime(subm) : "—";
+
+    const validText = tm.hasBot
+      ? (tm.botValidationStatus === "ok"
+        ? `<span class="t-team-valid ok">100% ${t("tournament.team.row.valid_short")} ✓</span>`
+        : `<span class="t-team-valid ko">${t("tournament.team.row.invalid_short")} ✗</span>`)
+      : `<span class="muted">—</span>`;
+
     const li = document.createElement("li");
-    li.className = "team-row";
-    li.style.setProperty("--team-color", `hsl(${hue} 75% 65%)`);
-    const avatarUrl = `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(team.display_name)}&backgroundColor=transparent`;
-    const emoji = team.emoji ? `<span class="team-emoji">${escapeHtml(team.emoji)}</span>` : "";
-    const botInfo = c.total === 0
-      ? `<span class="badge">${t("teams.bot.none")}</span>`
-      : `<span class="badge ${c.valid > 0 ? "ok" : "ko"}">${t("teams.bot.count", { valid: c.valid, total: c.total })}</span>`;
+    li.className = "t-team-row";
     li.innerHTML = `
-      <div class="t-row">
-        <div class="team-avatar-mini" style="border-color: hsl(${hue} 75% 65%);">
-          <img src="${avatarUrl}" alt="" loading="lazy" />
+      <div class="t-team-identity">
+        <span class="t-team-emoji">${escapeHtml(tm.emoji || "▣")}</span>
+        <div class="t-team-id-body">
+          <div class="t-team-name">${escapeHtml(tm.display_name)}</div>
+          ${tm.email ? `<div class="t-team-email muted small">${escapeHtml(tm.email)}</div>` : ""}
         </div>
-        ${emoji}<strong>${escapeHtml(team.display_name)}</strong>
-        ${botInfo}
-        <button data-id="${team.id}" class="del-btn" type="button">${t("tournament.remove")}</button>
+      </div>
+      <div class="t-team-col t-team-status">
+        <span class="badge ${statusClass}">${escapeHtml(statusLabel)}</span>
+        <span class="muted small">${escapeHtml(statusSub)}</span>
+      </div>
+      <div class="t-team-col t-team-bots">
+        <span class="t-team-num">${tm.hasBot ? 1 : 0} / 1</span>
+        <span class="muted small">${t("tournament.team.row.submitted")}</span>
+      </div>
+      <div class="t-team-col t-team-validation">
+        ${validText}
+      </div>
+      <div class="t-team-col t-team-activity">
+        <span>${escapeHtml(submRel)}</span>
+        <span class="muted small">${escapeHtml(submStr)}</span>
+      </div>
+      <div class="t-team-actions">
+        ${tm.hasBot ? `<button type="button" class="t-team-iconbtn" data-view="${escapeHtml(tm.id)}" data-name="${escapeHtml(tm.display_name)}" title="${t("tournament.bot.view")}">👁</button>` : ""}
+        <button type="button" class="t-team-iconbtn danger" data-del="${escapeHtml(tm.id)}" title="${t("tournament.remove")}">🗑</button>
       </div>
     `;
     els.teamsList.appendChild(li);
-  });
+  }
 
-  els.teamsList.querySelectorAll(".del-btn").forEach((btn) => {
+  // Wire actions
+  els.teamsList.querySelectorAll("[data-view]").forEach((btn) => {
+    btn.addEventListener("click", () => openBotModal(btn.dataset.view, btn.dataset.name));
+  });
+  els.teamsList.querySelectorAll("[data-del]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       if (!confirm(t("tournament.remove.confirm"))) return;
       try {
-        await updateDoc(doc(db, "teams", btn.dataset.id), { active_tournament_id: null });
+        await deleteDoc(doc(db, "tournaments", tournamentId, "teams", btn.dataset.del));
         await Promise.all([refreshAvailable(), refreshTeams()]);
       } catch (err) {
         console.error(err);
@@ -193,9 +402,277 @@ async function refreshTeams() {
   });
 }
 
+els.teamsSearch.addEventListener("input", renderTeamsList);
+
+// ---------- Stat tiles ----------
+function renderStats() {
+  const total = teamsData.length;
+  const withBot = teamsData.filter((tm) => tm.hasBot).length;
+  const valid = teamsData.filter((tm) => tm.botValidationStatus === "ok").length;
+  const issues = teamsData.filter((tm) => tm.hasBot && tm.botValidationStatus !== "ok").length;
+  const pending = teamsData.filter((tm) => !tm.hasBot).length;
+  const pctValid = withBot > 0 ? Math.round((valid / withBot) * 100) : 0;
+  const avg = total > 0 ? (withBot / total).toFixed(1) : "0";
+
+  els.statTeams.textContent = total;
+  els.statTeamsSub.textContent = t("tournament.stat.teams.sub", { n: withBot });
+  els.statBots.textContent = withBot;
+  els.statBotsSub.textContent = t("tournament.stat.bots.sub", { n: avg });
+  els.statValid.textContent = valid;
+  els.statValidSub.textContent = t("tournament.stat.valid.sub", { n: pctValid });
+  els.statIssues.textContent = issues;
+  els.statPending.textContent = pending;
+}
+
+// ---------- Add team modal ----------
+els.openAddBtn.addEventListener("click", () => openModal(els.addModal));
+
+els.addForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  els.addMsg.hidden = true;
+  const teamId = els.pick.value;
+  if (!teamId) return;
+  els.addBtn.disabled = true;
+  try {
+    await setDoc(doc(db, "tournaments", tournamentId, "teams", teamId), {
+      team_id: teamId,
+      registered_at: serverTimestamp()
+    });
+    closeModal(els.addModal);
+    await Promise.all([refreshAvailable(), refreshTeams()]);
+  } catch (err) {
+    console.error(err);
+    showMsg(els.addMsg, false, t("teams.add.error", { msg: err.message || err }));
+  } finally {
+    els.addBtn.disabled = false;
+  }
+});
+
+// ---------- Bot view modal ----------
+function openBotModal(teamId, teamName) {
+  const bot = latestBotByTeam[teamId];
+  els.botModalTitle.textContent = t("tournament.bot.modal.title", { team: teamName });
+  if (!bot) {
+    els.botModalCode.textContent = t("tournament.bot.modal.no_code");
+    els.botModalStatus.textContent = "";
+    els.botModalStatus.className = "badge";
+    els.botModalSubmitted.textContent = "";
+    els.botModalValidation.hidden = true;
+  } else {
+    const ts = bot.submitted_at?.toDate?.() ?? null;
+    const locale = document.documentElement.lang === "fr" ? "fr-FR" : "en-GB";
+    els.botModalSubmitted.textContent = ts
+      ? t("tournament.bot.modal.submitted_at", { time: ts.toLocaleString(locale) })
+      : "";
+    if (bot.validation_status === "ok") {
+      els.botModalStatus.textContent = t("tournament.bot.modal.status.valid");
+      els.botModalStatus.className = "badge ok";
+      els.botModalValidation.hidden = true;
+    } else {
+      els.botModalStatus.textContent = t("tournament.bot.modal.status.invalid");
+      els.botModalStatus.className = "badge ko";
+      els.botModalValidation.textContent = bot.validation_message || "";
+      els.botModalValidation.hidden = !bot.validation_message;
+    }
+    els.botModalCode.textContent = bot.code || "";
+  }
+  openModal(els.botModal);
+}
+
+// ---------- Launch tournament ----------
+els.launchBtn.addEventListener("click", () => {
+  els.launchMsg.hidden = true;
+  const missing = teamsWithoutBot;
+  if (missing.length === 0) {
+    els.launchModalReady.hidden = false;
+    els.launchModalMissingIntro.hidden = true;
+    els.launchModalMissingList.innerHTML = "";
+  } else {
+    els.launchModalReady.hidden = true;
+    els.launchModalMissingIntro.hidden = false;
+    els.launchModalMissingIntro.textContent = t("tournament.launch.modal.missing_intro", { n: missing.length });
+    els.launchModalMissingList.innerHTML = missing.map((m) => {
+      const label = m.emoji ? `${m.emoji} ${m.display_name}` : m.display_name;
+      return `<li>${escapeHtml(label)}</li>`;
+    }).join("");
+  }
+  els.launchConfirmCheck.checked = false;
+  els.launchConfirmBtn.disabled = true;
+  openModal(els.launchModal);
+});
+
+els.launchConfirmCheck.addEventListener("change", () => {
+  els.launchConfirmBtn.disabled = !els.launchConfirmCheck.checked;
+});
+
+els.launchConfirmBtn.addEventListener("click", async () => {
+  els.launchConfirmBtn.disabled = true;
+  try {
+    await updateDoc(doc(db, "tournaments", tournamentId), {
+      status: "running",
+      launched_at: serverTimestamp()
+    });
+    tournamentData.status = "running";
+    closeModal(els.launchModal);
+    renderHero();
+    renderFlow();
+    renderSettings();
+    updateStatusUI();
+    showMsg(els.launchMsg, true, t("tournament.launch.success"));
+  } catch (err) {
+    console.error(err);
+    closeModal(els.launchModal);
+    showMsg(els.launchMsg, false, t("teams.add.error", { msg: err.message || err }));
+  } finally {
+    els.launchConfirmBtn.disabled = !els.launchConfirmCheck.checked;
+  }
+});
+
+// ---------- Run matches ----------
+els.runBtn.addEventListener("click", async () => {
+  els.runMsg.hidden = true;
+  if (!confirm(t("tournament.run.confirm"))) return;
+  els.runBtn.disabled = true;
+  els.runProgress.hidden = false;
+  els.runProgressBar.style.width = "0%";
+  try {
+    setRunStage(t("tournament.run.loading_pyodide"));
+    await ensurePyodide();
+
+    const participants = teamsData
+      .filter((tm) => tm.botValidationStatus === "ok")
+      .map((tm) => ({ id: tm.id, name: latestBotByTeam[tm.id]?.name || "?", code: latestBotByTeam[tm.id]?.code || "" }));
+    if (participants.length < 2) throw new Error(t("tournament.run.need_two"));
+
+    const pairs = [];
+    for (let i = 0; i < participants.length; i++) {
+      for (let j = i + 1; j < participants.length; j++) {
+        pairs.push([participants[i], participants[j]]);
+      }
+    }
+    const nbTurns = tournamentData.nb_turns || 30;
+    const noise = tournamentData.noise_level || 0;
+
+    const totals = {}, wins = {}, ties = {}, losses = {}, coopSum = {}, matchCount = {};
+    for (const p of participants) {
+      totals[p.id] = 0; wins[p.id] = 0; ties[p.id] = 0; losses[p.id] = 0;
+      coopSum[p.id] = 0; matchCount[p.id] = 0;
+    }
+
+    for (let i = 0; i < pairs.length; i++) {
+      const [a, b] = pairs[i];
+      setRunStage(t("tournament.run.match", { i: i + 1, n: pairs.length, a: a.name, b: b.name }));
+      els.runProgressBar.style.width = `${Math.round((i / pairs.length) * 100)}%`;
+      await new Promise((r) => setTimeout(r, 0));
+
+      const seed = hashSeed(`${a.id}__${b.id}__${tournamentId}`);
+      const r = pythonRunMatch(a.code, b.code, nbTurns, noise, seed);
+      if (!r.ok) {
+        await writeMatch(a, b, { score_a: 0, score_b: 0, history_a: "", history_b: "", error: r.error }, nbTurns, noise);
+        continue;
+      }
+      totals[a.id] += r.score_a; totals[b.id] += r.score_b;
+      matchCount[a.id]++; matchCount[b.id]++;
+      if (r.score_a > r.score_b) { wins[a.id]++; losses[b.id]++; }
+      else if (r.score_a < r.score_b) { wins[b.id]++; losses[a.id]++; }
+      else { ties[a.id]++; ties[b.id]++; }
+      coopSum[a.id] += rateOfC(r.history_a);
+      coopSum[b.id] += rateOfC(r.history_b);
+      await writeMatch(a, b, r, nbTurns, noise);
+    }
+
+    const coop = {}, avg_score = {};
+    for (const p of participants) {
+      coop[p.id] = matchCount[p.id] > 0 ? coopSum[p.id] / matchCount[p.id] : 0;
+      avg_score[p.id] = matchCount[p.id] > 0 ? totals[p.id] / matchCount[p.id] : 0;
+    }
+    setRunStage(t("tournament.run.writing_leaderboard"));
+    els.runProgressBar.style.width = "98%";
+    await setDoc(doc(db, "tournaments", tournamentId, "leaderboards", "main"), {
+      scores: totals, wins, ties, losses, coop, avg_score,
+      updated_at: serverTimestamp(), phase: "final"
+    });
+    await updateDoc(doc(db, "tournaments", tournamentId), {
+      status: "completed", completed_at: serverTimestamp()
+    });
+    tournamentData.status = "completed";
+    els.runProgressBar.style.width = "100%";
+    setRunStage(t("tournament.run.done", { n: pairs.length }));
+    showMsg(els.runMsg, true, t("tournament.run.success", { n: pairs.length }));
+    setTimeout(() => {
+      window.location.href = `tournament-view.html?t=${encodeURIComponent(tournamentId)}`;
+    }, 1200);
+  } catch (err) {
+    console.error(err);
+    els.runProgress.hidden = true;
+    showMsg(els.runMsg, false, t("tournament.run.error", { msg: err.message || err }));
+    els.runBtn.disabled = false;
+  }
+});
+
+function setRunStage(text) { els.runProgressLabel.textContent = text; }
+
+async function ensurePyodide() {
+  if (pyodide) return;
+  const { loadPyodide } = await import("https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.mjs");
+  pyodide = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" });
+  const sandboxCode = await fetch("./sandbox.py").then((r) => r.text());
+  pyodide.runPython(sandboxCode);
+}
+
+function pythonRunMatch(codeA, codeB, nbTurns, noise, seed) {
+  pyodide.globals.set("_code_a", codeA);
+  pyodide.globals.set("_code_b", codeB);
+  pyodide.globals.set("_nb", nbTurns);
+  pyodide.globals.set("_noise", noise);
+  pyodide.globals.set("_seed", seed);
+  const proxy = pyodide.runPython("run_tournament_match(_code_a, _code_b, _nb, _noise, _seed)");
+  const result = proxy.toJs({ dict_converter: Object.fromEntries });
+  proxy.destroy();
+  return result;
+}
+
+async function writeMatch(a, b, r, nbTurns, noise) {
+  const [first, second] = [a.id, b.id].sort();
+  const matchId = `${first}__${second}`;
+  await setDoc(doc(db, "tournaments", tournamentId, "matches", matchId), {
+    team_a_id: a.id, team_b_id: b.id, team_a_name: a.name, team_b_name: b.name,
+    score_a: r.score_a ?? 0, score_b: r.score_b ?? 0,
+    history_a: r.history_a ?? "", history_b: r.history_b ?? "",
+    nb_turns: nbTurns, noise_level: noise,
+    forfeit: r.forfeit ?? null, error: r.error ?? null,
+    played_at: serverTimestamp()
+  });
+}
+
+function rateOfC(h) { if (!h) return 0; let c = 0; for (const ch of h) if (ch === "C") c++; return c / h.length; }
+function hashSeed(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = s.charCodeAt(i) + ((h << 5) - h); h |= 0; } return Math.abs(h); }
+
+// ---------- Modal helpers ----------
+function openModal(modal) {
+  modal.hidden = false;
+  modal.addEventListener("click", onModalBackdropClick);
+}
+function closeModal(modal) {
+  modal.hidden = true;
+  modal.removeEventListener("click", onModalBackdropClick);
+}
+function onModalBackdropClick(e) {
+  if (e.target === e.currentTarget || e.target.dataset.modalClose !== undefined || e.target.classList.contains("modal-close")) {
+    closeModal(e.currentTarget);
+  }
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    document.querySelectorAll(".modal-backdrop").forEach((m) => { if (!m.hidden) closeModal(m); });
+  }
+});
+
 document.addEventListener("langchange", () => {
   if (!els.main.hidden) {
-    renderHeader();
+    renderHero();
+    renderFlow();
+    renderSettings();
     refreshAvailable();
     refreshTeams();
   }
@@ -208,13 +685,15 @@ function showMsg(el, ok, message) {
   el.textContent = message;
 }
 
-function teamHue(name) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    hash |= 0;
-  }
-  return Math.abs(hash) % 360;
+function relativeTime(date) {
+  const diff = Date.now() - date.getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return t("time.just_now");
+  if (minutes < 60) return t("time.minutes_ago", { n: minutes });
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return t("time.hours_ago", { n: hours });
+  const days = Math.floor(hours / 24);
+  return t("time.days_ago", { n: days });
 }
 
 function escapeHtml(s) {

@@ -1,3 +1,31 @@
+// =============================================================================
+// Axelrod — Firestore Security Rules
+//
+// Rules language version: '2' (Firestore current). Tracking of OUR rule
+// changes lives below + in README.md → "Schema changes".
+//
+// Changelog (most recent first) :
+//   2026-05-11  Admin-run tournament : admins can now write
+//               /tournaments/{tid}/matches/* and /leaderboards/* (since the
+//               match runner lives in the admin browser via Pyodide, not in
+//               Cloud Functions). Reads remain open to all signed-in users.
+//   2026-05-11  Collection group query support : add recursive
+//               `match /{path=**}/teams/{teamId}` to authorize the
+//               collection group query used by team-context.js.
+//   2026-05-11  Multi-tournament : drop active_tournament_id on /teams,
+//               admin-only create on /tournaments/{tid}/teams/{teamId},
+//               teams discoverable via collection group `team_id` query.
+//   2026-05-10  Bot model refactor : drop /bots subcollection, bot stored
+//               as fields on /tournaments/{tid}/teams/{teamId}.
+//   2026-05-09  Schema rework : /teams promoted to top-level, /users
+//               mapping dropped, /strategies added under team.
+//   2026-05-08  Sprint Strategies : added /strategies subcollection,
+//               separate strategy lifecycle from bot submissions.
+//   2026-05-07  Initial release : /admins, /tournaments + nested teams/bots.
+//
+// Deploy : firebase deploy --only firestore
+// =============================================================================
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -12,6 +40,15 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    // Collection group query support. Une collection group query sur "teams"
+    // (top-level /teams + sous-collection /tournaments/{tid}/teams) exige une
+    // règle avec wildcard récursif {path=**} en plus des règles spécifiques.
+    // Sans ça, le client reçoit "Missing or insufficient permissions" alors
+    // même que la lecture directe doc-par-doc serait autorisée.
+    match /{path=**}/teams/{teamId} {
+      allow read: if isSignedIn();
+    }
+
     // Liste des UIDs admin. Lecture pour tout utilisateur signé (chaque page
     // vérifie si elle-même est admin), écriture impossible depuis le client
     // (gérée à la main dans la console Firebase).
@@ -22,8 +59,8 @@ service cloud.firestore {
 
     // Équipes — top-level. Le doc ID est l'UID Firebase Auth du compte
     // partagé par les 2 élèves de l'équipe. Une équipe persiste à travers
-    // les tournois ; le champ active_tournament_id pointe vers le tournoi
-    // courant.
+    // les tournois. Les inscriptions aux tournois sont matérialisées par
+    // les docs `/tournaments/{tid}/teams/{uid}` (multi-tournoi possible).
     match /teams/{uid} {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
@@ -41,25 +78,30 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
 
-      // Soumissions de bots dans ce tournoi. Le champ team_id identifie
-      // l'équipe qui soumet (équivaut à son UID Firebase Auth).
-      // Une équipe ne peut créer une soumission que pour elle-même.
-      match /bots/{botId} {
+      // Participation d'une équipe à ce tournoi. Le doc ID est l'UID de
+      // l'équipe (égal à son UID Firebase Auth).
+      // - Admin : créer / supprimer (= inscrire / désinscrire l'équipe au tournoi)
+      // - Équipe propriétaire : peut mettre à jour son propre doc (= soumettre son bot).
+      //   La contrainte 1-shot est gérée côté UI.
+      // Le champ team_id est dénormalisé pour permettre une collection group
+      // query côté équipe ("dans quels tournois suis-je inscrite ?").
+      match /teams/{teamId} {
         allow read: if isSignedIn();
-        allow create: if isSignedIn() &&
-          request.resource.data.team_id == request.auth.uid;
-        allow update, delete: if false;
+        allow create, delete: if isAdmin();
+        allow update: if isAdmin() ||
+                         (isSignedIn() && request.auth.uid == teamId);
       }
 
-      // Matches et leaderboards écrits uniquement par les Cloud Functions.
+      // Matches et leaderboards écrits par l'admin depuis le runner Pyodide
+      // (côté page admin). Lecture ouverte à toute équipe signée.
       match /matches/{matchId} {
         allow read: if isSignedIn();
-        allow write: if false;
+        allow write: if isAdmin();
       }
 
       match /leaderboards/{phaseId} {
         allow read: if isSignedIn();
-        allow write: if false;
+        allow write: if isAdmin();
       }
     }
   }

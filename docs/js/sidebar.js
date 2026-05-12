@@ -1,6 +1,7 @@
 import { auth } from "./firebase-config.js";
 import { logout, isUserAdmin } from "./auth.js";
 import { t } from "./i18n.js";
+import { playDoorOpen } from "./sound.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
 
 let cachedIsAdmin = null;
@@ -14,6 +15,22 @@ function refreshRoleLabel() {
 export function initSidebar(activePage) {
   const link = document.querySelector(`.sidebar-link[data-page="${activePage}"]`);
   if (link) link.classList.add("active");
+
+  // Spaceship door whoosh on navigation. Intercept clicks, play sound, then
+  // navigate after a short delay so the attack of the sound is heard before
+  // the page unloads.
+  document.querySelectorAll(".sidebar-link").forEach((a) => {
+    if (a.classList.contains("disabled")) return;
+    const href = a.getAttribute("href");
+    if (!href || href === "#") return;
+    a.addEventListener("click", (e) => {
+      // Respect open-in-new-tab modifiers
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      playDoorOpen();
+      setTimeout(() => { window.location.href = href; }, 300);
+    });
+  });
 
   const logoutBtn = document.getElementById("logout-btn");
   if (logoutBtn) {

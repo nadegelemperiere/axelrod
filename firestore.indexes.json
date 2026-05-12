@@ -1,13 +1,12 @@
 {
-  "indexes": [
+  "indexes": [],
+  "fieldOverrides": [
     {
-      "collectionGroup": "bots",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "team_id", "order": "ASCENDING" },
-        { "fieldPath": "submitted_at", "order": "DESCENDING" }
+      "collectionGroup": "teams",
+      "fieldPath": "team_id",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
       ]
     }
-  ],
-  "fieldOverrides": []
+  ]
 }

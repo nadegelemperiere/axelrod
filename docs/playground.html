@@ -50,7 +50,7 @@
           </a>
         </div>
         <div class="sidebar-section">
-          <a class="sidebar-link disabled">
+          <a href="tournaments.html" class="sidebar-link" data-page="tournaments-list">
             <img src="imgs/tournament.png" alt="" class="sidebar-icon" />
             <div class="sidebar-link-text">
               <div class="sidebar-link-title" data-i18n="sidebar.tournaments">Tournaments</div>
@@ -146,6 +146,7 @@
               </div>
               <span id="save-indicator" class="editor-save-state" data-i18n="playground.editor.saved">Saved</span>
             </div>
+            <p id="lock-banner" class="locked-banner" hidden></p>
             <div id="editor" class="editor"></div>
             <p id="validation-msg" class="validation-msg" hidden></p>
           </div>
@@ -319,17 +320,31 @@
             <h2 data-i18n="playground.submit.modal.title">Submit to the tournament</h2>
             <button class="modal-close" type="button" data-modal-close>×</button>
           </div>
-          <div class="modal-warning" data-i18n="playground.submit.modal.warning">
-            This is irreversible.
+
+          <p id="submit-checking" class="muted small" data-i18n="playground.submit.modal.checking">Checking tournament status…</p>
+
+          <div id="submit-blocked" class="error" hidden>
+            <span id="submit-blocked-msg"></span>
           </div>
-          <label>
-            <span data-i18n="playground.submit.modal.name">Submission name</span>
-            <input type="text" id="submit-name" required />
-          </label>
-          <label class="modal-checkbox">
-            <input type="checkbox" id="submit-confirm-check" />
-            <span data-i18n="playground.submit.modal.confirm.checkbox">I understand this is final.</span>
-          </label>
+
+          <div id="submit-form-content" hidden>
+            <div class="modal-warning" data-i18n="playground.submit.modal.warning">
+              This is irreversible.
+            </div>
+            <label>
+              <span data-i18n="playground.submit.modal.tournament">Tournament</span>
+              <select id="submit-tournament" required></select>
+            </label>
+            <label>
+              <span data-i18n="playground.submit.modal.name">Submission name</span>
+              <input type="text" id="submit-name" required />
+            </label>
+            <label class="modal-checkbox">
+              <input type="checkbox" id="submit-confirm-check" />
+              <span data-i18n="playground.submit.modal.confirm.checkbox">I understand this is final.</span>
+            </label>
+          </div>
+
           <div class="modal-actions">
             <button class="btn-cancel" type="button" data-modal-close data-i18n="playground.submit.modal.cancel">Cancel</button>
             <button class="btn-submit-final" type="button" id="submit-confirm-btn" disabled data-i18n="playground.submit.modal.confirm">Submit definitively</button>

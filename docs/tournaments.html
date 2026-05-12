@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Home · Axelrod</title>
+  <title>Tournaments · Axelrod</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body data-page="home">
+<body data-page="tournaments-list">
 
   <div class="app">
 
@@ -101,37 +101,25 @@
 
     <div class="content">
 
+      <div class="content-header">
+        <div>
+          <h1 data-i18n="tournaments.list.title">Tournaments</h1>
+          <p class="lede" data-i18n="tournaments.list.subtitle">All tournaments — past, current, and upcoming.</p>
+        </div>
+      </div>
+
       <p id="no-team" class="access-denied" hidden data-i18n="noteam.message">
         You haven't been assigned to a team yet. Contact your teacher.
       </p>
 
       <main id="main" hidden>
-        <section class="welcome">
-          <div class="welcome-greeting">
-            <h1 id="welcome-greeting"></h1>
-            <p data-i18n="welcome.subtitle">Ready to outwit the sharpest minds?</p>
-          </div>
-          <aside class="welcome-season" id="welcome-season">
-            <span class="kicker" data-i18n="welcome.season.kicker">Active tournament</span>
-            <strong id="welcome-season-name"></strong>
-            <span class="meta" id="welcome-season-meta"></span>
-          </aside>
-        </section>
-
-        <section class="hero-banner">
-          <div class="hero-banner-content">
-            <h2 class="hero-banner-title" data-i18n="hero.banner.title">AXELROD</h2>
-            <p class="hero-banner-tagline" data-i18n="hero.banner.tagline">The tournament where cooperation and betrayal forge legends.</p>
-            <a id="cta-launch" class="hero-cta" href="playground.html" data-i18n="hero.banner.cta">Launch playground →</a>
-          </div>
-          <img src="imgs/intro.png" alt="" class="hero-banner-image" />
-        </section>
+        <ul id="tournament-list" class="tournament-list"></ul>
       </main>
 
     </div>
   </div>
 
   <script type="module" src="js/i18n.js"></script>
-  <script type="module" src="js/team.js"></script>
+  <script type="module" src="js/tournaments.js"></script>
 </body>
 </html>

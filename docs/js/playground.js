@@ -5,14 +5,10 @@ import { db } from "./firebase-config.js";
 import {
   doc,
   getDoc,
+  setDoc,
   updateDoc,
   collection,
   addDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  getDocs,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
@@ -74,6 +70,7 @@ const els = {
   helpBtn: document.getElementById("help-btn"),
   docsModal: document.getElementById("docs-modal"),
   saveIndicator: document.getElementById("save-indicator"),
+  lockBanner: document.getElementById("lock-banner"),
   editor: document.getElementById("editor"),
   resetBtn: document.getElementById("reset-btn"),
   validationMsg: document.getElementById("validation-msg"),
@@ -106,6 +103,11 @@ const els = {
   saveDescription: document.getElementById("save-description"),
   saveConfirmBtn: document.getElementById("save-confirm-btn"),
   submitModal: document.getElementById("submit-modal"),
+  submitChecking: document.getElementById("submit-checking"),
+  submitBlocked: document.getElementById("submit-blocked"),
+  submitBlockedMsg: document.getElementById("submit-blocked-msg"),
+  submitFormContent: document.getElementById("submit-form-content"),
+  submitTournament: document.getElementById("submit-tournament"),
   submitName: document.getElementById("submit-name"),
   submitConfirmCheck: document.getElementById("submit-confirm-check"),
   submitConfirmBtn: document.getElementById("submit-confirm-btn")
@@ -113,6 +115,8 @@ const els = {
 
 let activeStrategyId = null;
 let activeStrategyName = null;
+let activeStrategyLocked = false;
+let activeStrategyLockedTournament = null;
 
 const PAYOFF = { CC: [3, 3], CD: [0, 5], DC: [5, 0], DD: [1, 1] };
 
@@ -149,6 +153,17 @@ loadTeamContext({
           activeStrategyId = strategyParam;
           activeStrategyName = data.name || null;
           initialCode = data.code || null;
+          if (data.last_submitted_at) {
+            activeStrategyLocked = true;
+            // Look up the tournament name live (not denormalized)
+            const tid = data.last_submitted_tournament_id;
+            if (tid) {
+              const tSnap = await getDoc(doc(db, "tournaments", tid));
+              activeStrategyLockedTournament = tSnap.exists() ? (tSnap.data().name || "?") : "?";
+            } else {
+              activeStrategyLockedTournament = "?";
+            }
+          }
         }
       } catch (e) {
         console.warn("Failed to load strategy from URL", e);
@@ -158,9 +173,12 @@ loadTeamContext({
     await initEditor(initialCode);
     await refreshSubmissions();
     els.main.hidden = false;
-    if (activeStrategyName) {
+    if (activeStrategyName && !activeStrategyLocked) {
       showValidationMsg(els.validationMsg,
         { ok: true, message: t("playground.loaded.from.strategy", { name: activeStrategyName }) });
+    }
+    if (activeStrategyLocked) {
+      applyLockedState();
     }
     await initPyodide();
   },
@@ -243,13 +261,23 @@ async function initPyodide() {
     pyodide.runPython(sandboxCode);
     els.loadingBanner.hidden = true;
     els.runBtn.disabled = false;
-    els.saveBtn.disabled = false;
+    els.saveBtn.disabled = activeStrategyLocked;
     els.submitBtn.disabled = false;
   } catch (err) {
     console.error("Pyodide init failed", err);
     els.loadingBanner.textContent = t("loading.pyodide.error");
     els.loadingBanner.classList.add("error");
   }
+}
+
+function applyLockedState() {
+  if (!activeStrategyLocked) return;
+  els.lockBanner.hidden = false;
+  els.lockBanner.textContent = t("strategies.locked.playground", {
+    name: activeStrategyLockedTournament || "?"
+  });
+  if (editor) editor.updateOptions({ readOnly: true });
+  els.saveBtn.disabled = true;
 }
 
 function pythonValidate(code) {
@@ -758,13 +786,63 @@ els.saveConfirmBtn.addEventListener("click", async () => {
 });
 
 // ---------- Submit to tournament (to /bots) ----------
-els.submitBtn.addEventListener("click", () => {
+els.submitBtn.addEventListener("click", async () => {
   if (!pyodide) return;
-  els.submitName.value = activeStrategyName || "";
-  els.submitConfirmCheck.checked = false;
+  // Reset modal to loading state
+  els.submitChecking.hidden = false;
+  els.submitBlocked.hidden = true;
+  els.submitFormContent.hidden = true;
   els.submitConfirmBtn.disabled = true;
   openSimpleModal(els.submitModal);
+
+  // Build list of eligible tournaments (registered + bot not yet submitted)
+  let eligible;
+  try {
+    eligible = await getEligibleTournaments();
+  } catch (err) {
+    console.error(err);
+    els.submitChecking.hidden = true;
+    els.submitBlocked.hidden = false;
+    els.submitBlockedMsg.textContent = t("submit.error", { msg: err.message || err });
+    return;
+  }
+
+  if (eligible.length === 0) {
+    els.submitChecking.hidden = true;
+    els.submitBlocked.hidden = false;
+    // Distinguish "no tournament at all" from "all tournaments already submitted"
+    if (!context.tournamentId) {
+      els.submitBlockedMsg.textContent = t("playground.submit.modal.no_tournament");
+    } else {
+      els.submitBlockedMsg.textContent = t("playground.submit.modal.already_submitted",
+        { name: context.tournament?.name || "" });
+    }
+    return;
+  }
+
+  // Populate SELECT with eligible tournaments
+  els.submitChecking.hidden = true;
+  els.submitFormContent.hidden = false;
+  els.submitTournament.innerHTML = eligible
+    .map((tm) => `<option value="${escapeAttr(tm.id)}">${escapeHtml(tm.name)}</option>`)
+    .join("");
+  els.submitName.value = activeStrategyName || "";
+  els.submitConfirmCheck.checked = false;
 });
+
+// Build the list of tournaments the team is registered to AND hasn't submitted to yet.
+// Uses the multi-tournament list loaded by team-context.js. Participation data
+// (including bot_code) is already loaded in tournament.participation.
+async function getEligibleTournaments() {
+  if (!context.tournaments || context.tournaments.length === 0) return [];
+  return context.tournaments
+    .filter((tm) => !tm.participation?.bot_code)
+    .map((tm) => ({ id: tm.id, name: tm.name }));
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/"/g, "&quot;");
+}
 
 els.submitConfirmCheck.addEventListener("change", () => {
   els.submitConfirmBtn.disabled = !els.submitConfirmCheck.checked;
@@ -772,35 +850,87 @@ els.submitConfirmCheck.addEventListener("change", () => {
 
 els.submitConfirmBtn.addEventListener("click", async () => {
   if (!pyodide) return;
-  if (!context.tournamentId) {
+  const targetTournamentId = els.submitTournament.value || context.tournamentId;
+  const targetTournamentName = els.submitTournament.options[els.submitTournament.selectedIndex]?.textContent || context.tournament?.name || "";
+  if (!targetTournamentId) {
     showValidationMsg(els.submitMsg,
-      { ok: false, message: "No active tournament. Ask your teacher to assign your team to a tournament." });
+      { ok: false, message: t("playground.submit.modal.no_tournament") });
     closeSimpleModal(els.submitModal);
     return;
   }
   els.submitConfirmBtn.disabled = true;
   try {
+    // Double-check race condition : someone else (e.g. teammate on another tab) just submitted
+    const guardSnap = await getDoc(
+      doc(db, "tournaments", targetTournamentId, "teams", context.uid)
+    );
+    if (guardSnap.exists() && guardSnap.data().bot_code) {
+      closeSimpleModal(els.submitModal);
+      showValidationMsg(els.submitMsg,
+        { ok: false, message: t("playground.submit.modal.already_submitted", { name: targetTournamentName }) });
+      return;
+    }
+
     const code = editor.getValue();
     const validation = pythonValidate(code);
     const submissionName = els.submitName.value.trim() || activeStrategyName || "Untitled";
-    await addDoc(
-      collection(db, "tournaments", context.tournamentId, "bots"),
-      {
-        team_id: context.uid,
-        code,
-        submitted_at: serverTimestamp(),
-        validation_status: validation.ok ? "ok" : "error",
-        validation_message: validation.message,
-        strategy_id: activeStrategyId || null,
-        name: submissionName
-      }
-    );
-    if (activeStrategyId) {
+    const validationFields = {
+      validation_status: validation.ok ? "ok" : "error",
+      validation_message: validation.message
+    };
+
+    // Always mirror the submission into /strategies so the history is preserved.
+    // We store only the tournament id; the name is looked up live from
+    // /tournaments/{id} when rendering — avoids stale denormalized data.
+    const submissionMeta = {
+      last_submitted_at: serverTimestamp(),
+      last_submitted_tournament_id: targetTournamentId
+    };
+
+    let strategyId = activeStrategyId;
+    if (strategyId) {
+      // Update existing strategy: code, validation, timestamps.
       await updateDoc(
-        doc(db, "teams", context.uid, "strategies", activeStrategyId),
-        { last_submitted_at: serverTimestamp() }
+        doc(db, "teams", context.uid, "strategies", strategyId),
+        {
+          code,
+          ...validationFields,
+          updated_at: serverTimestamp(),
+          ...submissionMeta
+        }
       );
+    } else {
+      // No active strategy yet → create one from this submission.
+      const newStratRef = await addDoc(
+        collection(db, "teams", context.uid, "strategies"),
+        {
+          name: submissionName,
+          description: "",
+          code,
+          ...validationFields,
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
+          ...submissionMeta
+        }
+      );
+      strategyId = newStratRef.id;
+      activeStrategyId = strategyId;
+      activeStrategyName = submissionName;
     }
+
+    // Submit by writing bot_* fields onto the team's participation doc
+    await setDoc(
+      doc(db, "tournaments", targetTournamentId, "teams", context.uid),
+      {
+        bot_code: code,
+        bot_name: submissionName,
+        bot_submitted_at: serverTimestamp(),
+        bot_validation_status: validation.ok ? "ok" : "error",
+        bot_validation_message: validation.message,
+        bot_strategy_id: strategyId
+      },
+      { merge: true }
+    );
     closeSimpleModal(els.submitModal);
     showValidationMsg(els.submitMsg,
       { ok: validation.ok, message: validation.ok
@@ -838,47 +968,45 @@ function showValidationMsg(el, result, prefix = "") {
 }
 
 async function refreshSubmissions() {
-  if (!context.tournamentId) {
-    els.submissions.innerHTML = "";
-    const li = document.createElement("li");
-    li.className = "empty";
-    li.textContent = t("submit.history.empty");
-    els.submissions.appendChild(li);
-    return;
-  }
-  const ref = collection(db, "tournaments", context.tournamentId, "bots");
-  const q = query(ref, where("team_id", "==", context.uid), orderBy("submitted_at", "desc"), limit(5));
-  const snap = await getDocs(q);
   els.submissions.innerHTML = "";
-  if (snap.empty) {
+  if (!context.tournamentId) {
     const li = document.createElement("li");
     li.className = "empty";
     li.textContent = t("submit.history.empty");
     els.submissions.appendChild(li);
     return;
   }
-  const localeForDates = document.documentElement.lang === "fr" ? "fr-FR" : "en-GB";
-  snap.forEach((d) => {
-    const data = d.data();
+  const partSnap = await getDoc(
+    doc(db, "tournaments", context.tournamentId, "teams", context.uid)
+  );
+  if (!partSnap.exists() || !partSnap.data().bot_code) {
     const li = document.createElement("li");
-    const ts = data.submitted_at?.toDate?.() ?? null;
-    const tsStr = ts ? ts.toLocaleString(localeForDates) : t("submit.pending");
-    const badge = data.validation_status === "ok" ? t("submit.badge.valid") : t("submit.badge.error");
-    const badgeClass = data.validation_status === "ok" ? "badge ok" : "badge ko";
-    li.innerHTML = `
-      <div class="t-row">
-        <span class="${badgeClass}">${badge}</span>
-        <span class="meta">${escapeHtml(tsStr)}</span>
-        <span class="meta validation-detail">${escapeHtml(data.validation_message || "")}</span>
-      </div>
-    `;
+    li.className = "empty";
+    li.textContent = t("submit.history.empty");
     els.submissions.appendChild(li);
-  });
+    return;
+  }
+  const data = partSnap.data();
+  const localeForDates = document.documentElement.lang === "fr" ? "fr-FR" : "en-GB";
+  const ts = data.bot_submitted_at?.toDate?.() ?? null;
+  const tsStr = ts ? ts.toLocaleString(localeForDates) : t("submit.pending");
+  const badge = data.bot_validation_status === "ok" ? t("submit.badge.valid") : t("submit.badge.error");
+  const badgeClass = data.bot_validation_status === "ok" ? "badge ok" : "badge ko";
+  const li = document.createElement("li");
+  li.innerHTML = `
+    <div class="t-row">
+      <span class="${badgeClass}">${badge}</span>
+      <span class="meta">${escapeHtml(tsStr)}</span>
+      <span class="meta validation-detail">${escapeHtml(data.bot_validation_message || "")}</span>
+    </div>
+  `;
+  els.submissions.appendChild(li);
 }
 
 // ---------- Lang change ----------
 document.addEventListener("langchange", () => {
   setSaveState(!els.saveIndicator.classList.contains("unsaved"));
+  if (activeStrategyLocked) applyLockedState();
   if (lastResult && lastOpponent) {
     renderMatch(lastResult, lastOpponent);
   }

@@ -21,3 +21,10 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// TEMP debugging : expose auth/db to window for console diagnostics.
+// Remove after debugging.
+if (typeof window !== "undefined") {
+  window._auth = auth;
+  window._db = db;
+}

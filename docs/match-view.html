@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Match · Axelrod</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="tournament-view">
+
+  <div class="app">
+
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="team.html" class="logo">
+          <img src="imgs/logo.png" alt="Axelrod" class="logo-mark" />
+          <div class="logo-text">
+            <div class="logo-name">Axelrod</div>
+            <div class="logo-tagline" data-i18n="app.tagline">The Tournament of Minds</div>
+          </div>
+        </a>
+      </div>
+      <nav class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="sidebar-user-avatar" id="user-avatar">—</div>
+          <div class="sidebar-user-info">
+            <div class="sidebar-user-name" id="user-name">—</div>
+            <div class="sidebar-user-role" id="user-role">—</div>
+          </div>
+          <button class="lang-toggle" type="button" aria-label="Toggle language">FR</button>
+          <button class="sidebar-logout" id="logout-btn" type="button" data-i18n-title="app.logout" title="Sign out">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="content">
+
+      <div class="content-header">
+        <div>
+          <p class="card-kicker"><a href="#" id="back-link" style="color: var(--muted);">← <span data-i18n="match.back">Back</span></a></p>
+          <h1 data-i18n="match.title">Match report</h1>
+          <p class="lede" id="match-meta"></p>
+        </div>
+      </div>
+
+      <p id="not-found" class="access-denied" hidden data-i18n="match.not_found">Match not found.</p>
+
+      <main id="main" hidden>
+        <section class="match-report-grid">
+          <div class="match-card match-teams-card">
+            <div class="match-team match-team-a">
+              <div class="match-team-name" id="team-a-name">—</div>
+              <div class="match-team-sub" id="team-a-sub" data-i18n="match.team.bot">Bot</div>
+              <div class="match-avatar"><img id="team-a-avatar" src="" alt="" /></div>
+              <div class="match-score" id="team-a-score">0</div>
+            </div>
+            <div class="match-team match-team-b">
+              <div class="match-team-name" id="team-b-name">—</div>
+              <div class="match-team-sub" id="team-b-sub" data-i18n="match.team.bot">Bot</div>
+              <div class="match-avatar"><img id="team-b-avatar" src="" alt="" /></div>
+              <div class="match-score" id="team-b-score">0</div>
+            </div>
+          </div>
+
+          <div class="match-card match-stats-card">
+            <ul class="match-stats">
+              <li>
+                <span class="match-stat-label" data-i18n="match.stat.result">Result</span>
+                <span class="match-stat-value" id="stat-result">—</span>
+              </li>
+              <li>
+                <span class="match-stat-label" data-i18n="match.stat.duration">Duration</span>
+                <span class="match-stat-value" id="stat-duration">—</span>
+              </li>
+              <li>
+                <span class="match-stat-label" data-i18n="match.stat.cooperation">Cooperation</span>
+                <span class="match-stat-value" id="stat-cooperation">—</span>
+              </li>
+              <li>
+                <span class="match-stat-label" data-i18n="match.stat.max_advantage">Max advantage</span>
+                <span class="match-stat-value" id="stat-max-advantage">—</span>
+              </li>
+              <li>
+                <span class="match-stat-label" data-i18n="match.stat.longest_streak">Longest streak</span>
+                <span class="match-stat-value" id="stat-longest-streak">—</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="match-card match-donut-card">
+            <h3 class="match-card-title" data-i18n="match.donut.title">Score distribution</h3>
+            <div class="match-donut-wrap">
+              <canvas id="donut-chart"></canvas>
+              <div class="match-donut-center">
+                <div class="match-donut-label" data-i18n="match.donut.total">Total</div>
+                <div class="match-donut-total" id="donut-total">0</div>
+              </div>
+            </div>
+            <div class="match-donut-legend">
+              <span><span class="legend-dot" style="background: var(--cyan)"></span><span id="donut-legend-a">—</span></span>
+              <span><span class="legend-dot" style="background: #ff7676"></span><span id="donut-legend-b">—</span></span>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2 data-i18n="match.history.title">Move history</h2>
+          <div class="match-history" id="match-history"></div>
+          <div class="match-history-legend">
+            <span><span class="match-cell-mini match-cell-c">C</span><span data-i18n="match.history.cooperate">Cooperate</span></span>
+            <span><span class="match-cell-mini match-cell-d">D</span><span data-i18n="match.history.defect">Defect</span></span>
+          </div>
+        </section>
+      </main>
+
+    </div>
+  </div>
+
+  <script type="module" src="js/i18n.js"></script>
+  <script type="module" src="js/match-view.js"></script>
+</body>
+</html>

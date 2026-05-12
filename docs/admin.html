@@ -61,11 +61,12 @@
 
     <div class="content">
 
-      <div class="content-header">
+      <div class="content-header content-header-row">
         <div>
           <h1 data-i18n="admin.title">Tournaments</h1>
           <p class="lede" data-i18n="admin.subtitle">Create and run class tournaments.</p>
         </div>
+        <button type="button" id="open-create-btn" class="primary-cta" data-i18n="admin.create.open">Create a tournament</button>
       </div>
 
       <p id="access-denied" class="access-denied" hidden data-i18n="access.denied">
@@ -73,32 +74,46 @@
       </p>
 
       <main id="main" hidden>
-        <section class="card">
-          <h2 data-i18n="admin.create.title">Create a tournament</h2>
-          <form id="create-form">
-            <label>
-              <span data-i18n="admin.create.name">Tournament name</span>
-              <input type="text" id="t-name" required maxlength="80" data-i18n-placeholder="admin.create.name.placeholder" placeholder="e.g. Axelrod Junior — June 2026">
-            </label>
-            <div class="row">
-              <label>
-                <span data-i18n="admin.create.turns">Rounds per match</span>
-                <input type="number" id="t-turns" value="30" min="5" max="200" required>
-              </label>
-              <label>
-                <span data-i18n="admin.create.noise">Noise level (0 to 0.5)</span>
-                <input type="number" id="t-noise" value="0" step="0.05" min="0" max="0.5" required>
-              </label>
-            </div>
-            <button type="submit" data-i18n="admin.create.submit">Create</button>
-          </form>
-        </section>
+        <div class="tab-bar tournament-tabs">
+          <button type="button" class="tab-btn active" data-filter="all" data-i18n="admin.tab.all">All</button>
+          <button type="button" class="tab-btn" data-filter="active" data-i18n="admin.tab.active">In progress</button>
+          <button type="button" class="tab-btn" data-filter="completed" data-i18n="admin.tab.completed">Completed</button>
+        </div>
 
-        <section class="card">
-          <h2 data-i18n="admin.list.title">Existing tournaments</h2>
-          <ul id="t-list" class="t-list"></ul>
-        </section>
+        <ul id="t-list" class="tournament-admin-list"></ul>
       </main>
+
+      <!-- Create tournament modal -->
+      <div id="create-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true" style="max-width: 560px;">
+          <div class="modal-head">
+            <h2 data-i18n="admin.create.title">Create a tournament</h2>
+            <button class="modal-close" type="button" data-modal-close>×</button>
+          </div>
+          <div class="modal-section">
+            <form id="create-form">
+              <label>
+                <span data-i18n="admin.create.name">Tournament name</span>
+                <input type="text" id="t-name" required maxlength="80" data-i18n-placeholder="admin.create.name.placeholder" placeholder="e.g. Axelrod Junior — June 2026">
+              </label>
+              <div class="row">
+                <label>
+                  <span data-i18n="admin.create.turns">Rounds per match</span>
+                  <input type="number" id="t-turns" value="30" min="5" max="200" required>
+                </label>
+                <label>
+                  <span data-i18n="admin.create.noise">Noise level (0 to 0.5)</span>
+                  <input type="number" id="t-noise" value="0" step="0.05" min="0" max="0.5" required>
+                </label>
+              </div>
+              <div style="display: flex; gap: 0.6rem; justify-content: flex-end; margin-top: 1rem;">
+                <button type="button" data-modal-close data-i18n="modal.cancel">Cancel</button>
+                <button type="submit" data-i18n="admin.create.submit">Create</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
 
     </div>
   </div>

@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body data-page="admin-teams">
+<body data-page="admin-teams" class="dense">
 
   <div class="app">
 
@@ -61,48 +61,162 @@
 
     <div class="content">
 
-      <div class="content-header">
+      <div class="content-header content-header-row">
         <div>
           <h1 data-i18n="teams.admin.title">Teams</h1>
-          <p class="lede" data-i18n="teams.admin.subtitle">Create and manage teams. Assign them to tournaments below.</p>
+          <p class="lede" data-i18n="teams.admin.subtitle.short">Manage all teams, their strategies and tournament participation.</p>
         </div>
+        <button type="button" id="open-create-btn" class="primary-cta">+ <span data-i18n="teams.admin.add">Add team</span></button>
       </div>
 
       <p id="access-denied" class="access-denied" hidden data-i18n="access.denied">
         Access denied — this account doesn't have admin role.
       </p>
 
-      <main id="main" hidden>
-        <section class="card">
-          <h2 data-i18n="teams.add.title">Add a team</h2>
-          <form id="add-form">
-            <div class="row">
-              <label>
-                <span data-i18n="teams.add.name">Team name</span>
-                <input type="text" id="t-name" required maxlength="40" data-i18n-placeholder="teams.add.name.placeholder" placeholder="The Apricots">
-              </label>
-              <label>
-                <span data-i18n="teams.add.emoji">Emoji (1 char)</span>
-                <input type="text" id="t-emoji" maxlength="4" placeholder="🍑">
-              </label>
-            </div>
-            <label>
-              <span data-i18n="teams.add.uid">Firebase UID of the owner account</span>
-              <input type="text" id="t-uid" required pattern="[A-Za-z0-9]+" data-i18n-placeholder="teams.add.uid.placeholder" placeholder="copied from Authentication > Users">
-            </label>
-            <p class="muted small" data-i18n="teams.add.uid.help">
-              First create the account (Firebase Console → Authentication → Add user) then paste the UID here.
-            </p>
-            <button type="submit" data-i18n="teams.add.submit">Add team</button>
-            <p id="add-msg" class="validation-msg" hidden></p>
-          </form>
-        </section>
+      <main id="main" hidden class="teams-layout">
 
-        <section class="card">
-          <h2 data-i18n="teams.list.title">Registered teams</h2>
-          <ul id="teams-list" class="t-list"></ul>
-        </section>
+        <div class="teams-content">
+
+          <!-- Stat tiles row -->
+          <section class="stat-row">
+            <div class="stat-tile">
+              <span class="stat-tile-icon" style="color:#5fe3d8">👥</span>
+              <div class="stat-tile-body">
+                <div class="stat-tile-num" id="stat-total-teams">0</div>
+                <div class="stat-tile-label" data-i18n="teams.stat.total">Total teams</div>
+                <div class="stat-tile-sub" id="stat-active-teams">—</div>
+              </div>
+            </div>
+            <div class="stat-tile">
+              <span class="stat-tile-icon" style="color:#b29eff">🧠</span>
+              <div class="stat-tile-body">
+                <div class="stat-tile-num" id="stat-total-strategies">0</div>
+                <div class="stat-tile-label" data-i18n="teams.stat.strategies">Strategies</div>
+                <div class="stat-tile-sub" id="stat-strategies-avg">—</div>
+              </div>
+            </div>
+            <div class="stat-tile">
+              <span class="stat-tile-icon" style="color:#f5b942">🏆</span>
+              <div class="stat-tile-body">
+                <div class="stat-tile-num" id="stat-running-tournaments">0</div>
+                <div class="stat-tile-label" data-i18n="teams.stat.running">Running tournaments</div>
+                <div class="stat-tile-sub" id="stat-participating">—</div>
+              </div>
+            </div>
+            <div class="stat-tile">
+              <span class="stat-tile-icon" style="color:#ff7676">⚠️</span>
+              <div class="stat-tile-body">
+                <div class="stat-tile-num" id="stat-issues">0</div>
+                <div class="stat-tile-label" data-i18n="teams.stat.issues">Validation issues</div>
+                <div class="stat-tile-sub" data-i18n="teams.stat.issues.sub">Invalid bots submitted</div>
+              </div>
+            </div>
+            <div class="stat-tile">
+              <span class="stat-tile-icon" style="color:#7ddca0">🛡️</span>
+              <div class="stat-tile-body">
+                <div class="stat-tile-num" id="stat-empty">0</div>
+                <div class="stat-tile-label" data-i18n="teams.stat.empty">Teams without strategy</div>
+                <div class="stat-tile-sub" data-i18n="teams.stat.empty.sub">No code yet</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Filter bar -->
+          <section class="filter-bar">
+            <label class="filter-search">
+              <span class="filter-search-icon">🔎</span>
+              <input type="text" id="filter-search" data-i18n-placeholder="teams.filter.search" placeholder="Search teams…" />
+            </label>
+            <select id="filter-tournament">
+              <option value="all" data-i18n="teams.filter.all_tournaments">All tournaments</option>
+            </select>
+            <select id="filter-bot">
+              <option value="all" data-i18n="teams.filter.bot.all">All bot states</option>
+              <option value="ok" data-i18n="teams.filter.bot.ok">Bot ok</option>
+              <option value="ko" data-i18n="teams.filter.bot.ko">Bot invalid</option>
+              <option value="none" data-i18n="teams.filter.bot.none">No bot</option>
+            </select>
+            <button type="button" id="filter-reset" class="filter-reset" data-i18n="tournament.view.matches.filter.reset">Reset</button>
+            <div class="view-toggle" role="group" aria-label="View mode">
+              <button type="button" id="view-cards" class="view-toggle-btn active" data-mode="cards" data-i18n-title="teams.view.cards" title="Cards">▦</button>
+              <button type="button" id="view-rows" class="view-toggle-btn" data-mode="rows" data-i18n-title="teams.view.rows" title="Rows">≡</button>
+            </div>
+          </section>
+
+          <!-- Team list (cards grid or rows depending on view mode) -->
+          <section class="teams-grid" id="teams-grid"></section>
+          <p id="teams-empty" class="ranking-empty" hidden data-i18n="teams.list.empty">No team yet.</p>
+
+        </div>
+
+        <!-- Side detail panel -->
+        <aside class="teams-detail" id="teams-detail" hidden>
+          <div class="detail-head">
+            <h3 class="card-section-title small" data-i18n="teams.detail.title">Team details</h3>
+            <button type="button" class="detail-close" id="detail-close" aria-label="Close">×</button>
+          </div>
+
+          <div class="detail-identity">
+            <div class="detail-hex" id="detail-hex">—</div>
+            <div class="detail-identity-body">
+              <div class="detail-name" id="detail-name">—</div>
+              <div class="detail-uid muted small" id="detail-uid">—</div>
+            </div>
+          </div>
+
+          <h4 class="detail-section-label" data-i18n="teams.detail.summary">Summary</h4>
+          <ul class="detail-list" id="detail-summary"></ul>
+
+          <h4 class="detail-section-label" data-i18n="teams.detail.tournaments">Tournaments</h4>
+          <ul class="detail-tournaments" id="detail-tournaments"></ul>
+
+          <h4 class="detail-section-label" data-i18n="teams.detail.actions">Actions</h4>
+          <ul class="detail-actions">
+            <li><button type="button" id="action-edit" data-action="edit"><span>✏️</span><span data-i18n="teams.action.edit">Edit team</span></button></li>
+            <li><button type="button" id="action-delete" data-action="delete"><span>🗑</span><span data-i18n="teams.action.delete">Delete team</span></button></li>
+          </ul>
+        </aside>
       </main>
+
+      <!-- Create/edit modal -->
+      <div id="team-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true" style="max-width: 480px;">
+          <div class="modal-head">
+            <h2 id="team-modal-title" data-i18n="teams.add.title">Add a team</h2>
+            <button class="modal-close" type="button" data-modal-close>×</button>
+          </div>
+          <div class="modal-section">
+            <form id="team-form">
+              <div class="row">
+                <label>
+                  <span data-i18n="teams.add.name">Team name</span>
+                  <input type="text" id="t-name" required maxlength="40" data-i18n-placeholder="teams.add.name.placeholder" placeholder="The Apricots">
+                </label>
+                <label>
+                  <span data-i18n="teams.add.emoji">Emoji</span>
+                  <input type="text" id="t-emoji" maxlength="4" placeholder="🍑">
+                </label>
+              </div>
+              <label>
+                <span data-i18n="teams.add.email">Contact email</span>
+                <input type="email" id="t-email" maxlength="80" placeholder="team@example.com">
+              </label>
+              <label>
+                <span data-i18n="teams.add.uid">Firebase UID of the owner account</span>
+                <input type="text" id="t-uid" required pattern="[A-Za-z0-9]+" data-i18n-placeholder="teams.add.uid.placeholder" placeholder="copied from Authentication > Users">
+              </label>
+              <p class="muted small" data-i18n="teams.add.uid.help">
+                First create the account (Firebase Console → Authentication → Add user) then paste the UID here.
+              </p>
+              <p id="form-msg" class="validation-msg" hidden></p>
+              <div style="display:flex; gap:0.6rem; justify-content:flex-end; margin-top: 0.85rem;">
+                <button type="button" data-modal-close data-i18n="modal.cancel">Cancel</button>
+                <button type="submit" id="team-submit-btn">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
 
     </div>
   </div>

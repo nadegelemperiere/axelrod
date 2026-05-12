@@ -302,3 +302,45 @@ def run_test(code, opponent_name, nb_turns=30, noise_level=0.0, seed=None):
     )
     result['opponent'] = opponent_name
     return result
+
+
+def run_tournament_match(code_a, code_b, nb_turns=30, noise_level=0.0, seed=None):
+    """Validates two user bots and plays a match between them.
+
+    Returns a dict {ok, ...}. If either bot fails to validate, the match
+    is forfeited for the failing side(s) — the other team gets `nb_turns * 5`
+    (max payoff) and the failing team gets 0.
+    Used by the tournament runner on the admin page.
+    """
+    if seed is not None:
+        random.seed(seed)
+
+    va = validate_bot_code(code_a)
+    vb = validate_bot_code(code_b)
+
+    if not va['ok'] and not vb['ok']:
+        return {
+            'ok': True, 'forfeit': 'both',
+            'score_a': 0, 'score_b': 0,
+            'history_a': '', 'history_b': '',
+            'error_a': va['message'], 'error_b': vb['message'],
+            'nb_turns': nb_turns, 'noise_level': noise_level,
+        }
+    if not va['ok']:
+        return {
+            'ok': True, 'forfeit': 'a',
+            'score_a': 0, 'score_b': nb_turns * 5,
+            'history_a': '', 'history_b': 'D' * nb_turns,
+            'error_a': va['message'],
+            'nb_turns': nb_turns, 'noise_level': noise_level,
+        }
+    if not vb['ok']:
+        return {
+            'ok': True, 'forfeit': 'b',
+            'score_a': nb_turns * 5, 'score_b': 0,
+            'history_a': 'D' * nb_turns, 'history_b': '',
+            'error_b': vb['message'],
+            'nb_turns': nb_turns, 'noise_level': noise_level,
+        }
+
+    return run_match(va['play'], vb['play'], nb_turns=nb_turns, noise_level=noise_level)

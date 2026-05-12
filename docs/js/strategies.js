@@ -5,6 +5,7 @@ import { db } from "./firebase-config.js";
 import {
   doc,
   getDoc,
+  setDoc,
   collection,
   addDoc,
   updateDoc,
@@ -26,6 +27,7 @@ const els = {
   detailContent: document.getElementById("detail-content"),
   detailName: document.getElementById("detail-name"),
   detailStatus: document.getElementById("detail-status"),
+  detailLockedBanner: document.getElementById("detail-locked-banner"),
   detailCode: document.getElementById("detail-code"),
   detailDescription: document.getElementById("detail-description"),
   detailCreated: document.getElementById("detail-created"),
@@ -43,6 +45,11 @@ const els = {
   testsList: document.getElementById("tests-list"),
   testsEmpty: document.getElementById("tests-empty"),
   submitModal: document.getElementById("submit-modal"),
+  submitChecking: document.getElementById("submit-checking"),
+  submitBlocked: document.getElementById("submit-blocked"),
+  submitBlockedMsg: document.getElementById("submit-blocked-msg"),
+  submitFormContent: document.getElementById("submit-form-content"),
+  submitTournament: document.getElementById("submit-tournament"),
   submitName: document.getElementById("submit-name"),
   submitConfirmCheck: document.getElementById("submit-confirm-check"),
   submitConfirmBtn: document.getElementById("submit-confirm-btn"),
@@ -58,6 +65,14 @@ let selectedId = null;
 let pyodide = null;
 let radarChart = null;
 let activeStrategyTab = "code";
+
+// Cache for tournament names (display only). Each time a strategy is shown
+// — in the library or in the detail pane — its linked tournament is re-checked
+// LIVE against /tournaments/{id} : if the tournament has been deleted, the
+// strategy is unlocked (last_submitted_at / last_submitted_tournament_id
+// cleared). The cache is filled as a side-effect of those live reads, so
+// names stay fresh too.
+const tournamentNamesCache = new Map();
 
 const REF_BOTS = ["always_cooperate", "always_defect", "tit_for_tat", "grudger", "random"];
 
@@ -85,7 +100,54 @@ async function refreshStrategies() {
   const snap = await getDocs(q);
   strategies = [];
   snap.forEach((d) => strategies.push({ id: d.id, ...d.data() }));
+  // Live check : for every locked strategy, verify the tournament still
+  // exists and unlock those whose tournament is gone.
+  await Promise.all(strategies.map((s) => verifyStrategyLock(s)));
   renderLibrary();
+}
+
+/**
+ * If the strategy is locked (has last_submitted_tournament_id), do a LIVE
+ * Firestore read on /tournaments/{tid} :
+ *   - exists  → refresh the name cache, leave the lock intact.
+ *   - missing → clear last_submitted_at + last_submitted_tournament_id
+ *               (server + local), so the strategy is editable again.
+ * Transient read errors leave the strategy unchanged (no false unlock).
+ * Returns true if the strategy was unlocked, false otherwise.
+ */
+async function verifyStrategyLock(s) {
+  const tid = s && s.last_submitted_tournament_id;
+  if (!tid) return false;
+  let tSnap;
+  try {
+    tSnap = await getDoc(doc(db, "tournaments", tid));
+  } catch (err) {
+    console.error("Tournament existence check failed for", tid, err);
+    return false;
+  }
+  if (tSnap.exists()) {
+    tournamentNamesCache.set(tid, tSnap.data().name || "?");
+    return false;
+  }
+  // Tournament confirmed gone → unlock the strategy.
+  try {
+    await updateDoc(doc(strategiesCollection(), s.id), {
+      last_submitted_at: null,
+      last_submitted_tournament_id: null
+    });
+    s.last_submitted_at = null;
+    s.last_submitted_tournament_id = null;
+    tournamentNamesCache.delete(tid);
+    return true;
+  } catch (err) {
+    console.error("Failed to unlock orphaned strategy", s.id, err);
+    return false;
+  }
+}
+
+function tournamentName(tid) {
+  if (!tid) return "?";
+  return tournamentNamesCache.get(tid) || "?";
 }
 
 // ---------- Library list ----------
@@ -110,8 +172,23 @@ function renderLibrary() {
     li.className = "lib-item" + (s.id === selectedId ? " selected" : "");
     li.dataset.id = s.id;
 
-    const status = s.validation_status === "ok" ? "ready" : s.validation_status === "error" ? "error" : "draft";
-    const statusBadge = `<span class="badge ${status === "ready" ? "ok" : status === "error" ? "ko" : ""}">${t(`strategies.status.${status}`)}</span>`;
+    const isLocked = isStrategyLocked(s);
+    const submittedTournamentName = isLocked ? tournamentName(s.last_submitted_tournament_id) : null;
+    let statusLabel, badgeClass;
+    if (isLocked) {
+      statusLabel = submittedTournamentName !== "?" ? submittedTournamentName : t("strategies.status.submitted");
+      badgeClass = "cyan";
+    } else if (s.validation_status === "ok") {
+      statusLabel = t("strategies.status.ready");
+      badgeClass = "ok";
+    } else if (s.validation_status === "error") {
+      statusLabel = t("strategies.status.error");
+      badgeClass = "ko";
+    } else {
+      statusLabel = t("strategies.status.draft");
+      badgeClass = "";
+    }
+    const statusBadge = `<span class="badge ${badgeClass}">${escapeHtml(statusLabel)}</span>`;
 
     li.innerHTML = `
       <img class="lib-item-avatar" src="${avatarUrl(s.name || s.id)}" alt="" />
@@ -126,6 +203,9 @@ function renderLibrary() {
             : ""}
         </div>
         <div class="lib-item-time">${t("strategies.library.modified", { time: relativeTime(s.updated_at) })}</div>
+        ${isLocked
+          ? `<div class="lib-item-submitted">${t("strategies.library.submitted_to", { name: escapeHtml(submittedTournamentName) })}</div>`
+          : ""}
       </div>
       ${statusBadge}
     `;
@@ -137,7 +217,11 @@ function renderLibrary() {
 els.libSearch.addEventListener("input", () => renderLibrary());
 
 // ---------- Selection / detail ----------
-function selectStrategy(id) {
+function isStrategyLocked(s) {
+  return !!(s && s.last_submitted_at);
+}
+
+async function selectStrategy(id) {
   selectedId = id;
   const s = strategies.find((x) => x.id === id);
   if (!s) {
@@ -145,7 +229,10 @@ function selectStrategy(id) {
     els.detailContent.hidden = true;
     return;
   }
-  renderLibrary(); // re-render to update selected state
+  // Live verify lock on display: if the linked tournament has been deleted
+  // since the last refresh, this clears the lock in-place.
+  await verifyStrategyLock(s);
+  renderLibrary(); // re-render to update selected state (and any unlock)
   els.detailEmpty.hidden = true;
   els.detailContent.hidden = false;
 
@@ -153,9 +240,41 @@ function selectStrategy(id) {
   els.detailDescription.value = s.description || "";
   els.detailCode.textContent = s.code || "";
 
-  const status = s.validation_status === "ok" ? "ready" : s.validation_status === "error" ? "error" : "draft";
-  els.detailStatus.textContent = t(`strategies.status.${status}`);
-  els.detailStatus.className = `badge strategy-status ${status === "ready" ? "ok" : status === "error" ? "ko" : ""}`;
+  const locked = isStrategyLocked(s);
+  const lockedTournamentName = locked ? tournamentName(s.last_submitted_tournament_id) : "?";
+  let statusLabel, badgeClass;
+  if (locked) {
+    statusLabel = lockedTournamentName !== "?" ? lockedTournamentName : t("strategies.status.submitted");
+    badgeClass = "cyan";
+  } else if (s.validation_status === "ok") {
+    statusLabel = t("strategies.status.ready");
+    badgeClass = "ok";
+  } else if (s.validation_status === "error") {
+    statusLabel = t("strategies.status.error");
+    badgeClass = "ko";
+  } else {
+    statusLabel = t("strategies.status.draft");
+    badgeClass = "";
+  }
+  els.detailStatus.textContent = statusLabel;
+  els.detailStatus.className = `badge strategy-status ${badgeClass}`;
+
+  // Lock UI elements if the strategy was submitted
+  els.detailName.readOnly = locked;
+  els.detailDescription.readOnly = locked;
+  els.btnDelete.disabled = locked;
+  els.btnSubmit.disabled = locked;
+  els.btnTest.textContent = locked
+    ? t("strategies.detail.action.view")
+    : t("strategies.detail.action.test");
+  if (locked) {
+    els.detailLockedBanner.hidden = false;
+    els.detailLockedBanner.textContent = t("strategies.locked.banner", {
+      name: lockedTournamentName
+    });
+  } else {
+    els.detailLockedBanner.hidden = true;
+  }
 
   els.detailCreated.textContent = relativeTime(s.created_at);
   els.detailModified.textContent = relativeTime(s.updated_at);
@@ -250,15 +369,56 @@ els.btnDelete.addEventListener("click", async () => {
 });
 
 // ---------- Submit modal ----------
-els.btnSubmit.addEventListener("click", () => {
+els.btnSubmit.addEventListener("click", async () => {
   if (!selectedId) return;
   const s = strategies.find((x) => x.id === selectedId);
   if (!s) return;
-  els.submitName.value = s.name || "";
-  els.submitConfirmCheck.checked = false;
+
+  // Open in loading state
+  els.submitChecking.hidden = false;
+  els.submitBlocked.hidden = true;
+  els.submitFormContent.hidden = true;
   els.submitConfirmBtn.disabled = true;
   openModal(els.submitModal);
+
+  let eligible;
+  try {
+    eligible = await getEligibleTournaments();
+  } catch (err) {
+    console.error(err);
+    els.submitChecking.hidden = true;
+    els.submitBlocked.hidden = false;
+    els.submitBlockedMsg.textContent = t("submit.error", { msg: err.message || err });
+    return;
+  }
+
+  if (eligible.length === 0) {
+    els.submitChecking.hidden = true;
+    els.submitBlocked.hidden = false;
+    if (!context.tournamentId) {
+      els.submitBlockedMsg.textContent = t("playground.submit.modal.no_tournament");
+    } else {
+      els.submitBlockedMsg.textContent = t("playground.submit.modal.already_submitted",
+        { name: context.tournament?.name || "" });
+    }
+    return;
+  }
+
+  els.submitChecking.hidden = true;
+  els.submitFormContent.hidden = false;
+  els.submitTournament.innerHTML = eligible
+    .map((tm) => `<option value="${tm.id.replace(/"/g, "&quot;")}">${escapeHtml(tm.name)}</option>`)
+    .join("");
+  els.submitName.value = s.name || "";
+  els.submitConfirmCheck.checked = false;
 });
+
+async function getEligibleTournaments() {
+  if (!context.tournaments || context.tournaments.length === 0) return [];
+  return context.tournaments
+    .filter((tm) => !tm.participation?.bot_code)
+    .map((tm) => ({ id: tm.id, name: tm.name }));
+}
 
 els.submitConfirmCheck.addEventListener("change", () => {
   els.submitConfirmBtn.disabled = !els.submitConfirmCheck.checked;
@@ -268,30 +428,45 @@ els.submitConfirmBtn.addEventListener("click", async () => {
   if (!selectedId) return;
   const s = strategies.find((x) => x.id === selectedId);
   if (!s) return;
+  const targetTournamentId = els.submitTournament.value || context.tournamentId;
+  const targetTournamentName = els.submitTournament.options[els.submitTournament.selectedIndex]?.textContent || context.tournament?.name || "";
+  if (!targetTournamentId) {
+    showMsg(els.detailMsg, false, t("playground.submit.modal.no_tournament"));
+    closeModal(els.submitModal);
+    return;
+  }
   els.submitConfirmBtn.disabled = true;
   try {
+    // Double-check race condition
+    const guardSnap = await getDoc(
+      doc(db, "tournaments", targetTournamentId, "teams", context.uid)
+    );
+    if (guardSnap.exists() && guardSnap.data().bot_code) {
+      closeModal(els.submitModal);
+      showMsg(els.detailMsg, false, t("playground.submit.modal.already_submitted", { name: targetTournamentName }));
+      return;
+    }
+
     // Validate via Pyodide (light check before submitting to /bots).
     await ensurePyodide();
     const validation = pyodide ? pythonValidate(s.code) : { ok: true, message: "" };
 
-    if (!context.tournamentId) {
-      throw new Error(t("strategies.detail.empty"));
-    }
-    await addDoc(
-      collection(db, "tournaments", context.tournamentId, "bots"),
+    await setDoc(
+      doc(db, "tournaments", targetTournamentId, "teams", context.uid),
       {
-        team_id: context.uid,
-        code: s.code,
-        submitted_at: serverTimestamp(),
-        validation_status: validation.ok ? "ok" : "error",
-        validation_message: validation.message,
-        strategy_id: s.id,
-        name: els.submitName.value.trim() || s.name || "Untitled"
-      }
+        bot_code: s.code,
+        bot_name: els.submitName.value.trim() || s.name || "Untitled",
+        bot_submitted_at: serverTimestamp(),
+        bot_validation_status: validation.ok ? "ok" : "error",
+        bot_validation_message: validation.message,
+        bot_strategy_id: s.id
+      },
+      { merge: true }
     );
 
     await updateDoc(doc(strategiesCollection(), selectedId), {
-      last_submitted_at: serverTimestamp()
+      last_submitted_at: serverTimestamp(),
+      last_submitted_tournament_id: targetTournamentId
     });
 
     closeModal(els.submitModal);
