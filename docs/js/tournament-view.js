@@ -24,8 +24,6 @@ const els = {
   heroName: document.getElementById("hero-name"),
   heroYouBadge: document.getElementById("hero-you-badge"),
   heroScore: document.getElementById("hero-score"),
-  heroWins: document.getElementById("hero-wins"),
-  heroLosses: document.getElementById("hero-losses"),
   heroCoop: document.getElementById("hero-coop"),
   heroAvg: document.getElementById("hero-avg"),
   heroNarrative: document.getElementById("hero-narrative"),
@@ -54,8 +52,8 @@ const els = {
   // Bottom: match preview
   previewEmpty: document.getElementById("preview-empty"),
   previewContent: document.getElementById("preview-content"),
-  prevTeamAAvatar: document.getElementById("prev-team-a-avatar"),
-  prevTeamBAvatar: document.getElementById("prev-team-b-avatar"),
+  prevTeamAEmoji: document.getElementById("prev-team-a-emoji"),
+  prevTeamBEmoji: document.getElementById("prev-team-b-emoji"),
   prevTeamAName: document.getElementById("prev-team-a-name"),
   prevTeamBName: document.getElementById("prev-team-b-name"),
   prevScoreA: document.getElementById("prev-score-a"),
@@ -83,11 +81,22 @@ let outcomesChart = null;
 // Strategy buckets used in the matchup matrix (mockup labels).
 const STRATEGY_BUCKETS = ["tit_for_tat", "cooperative", "neutral", "random", "aggressive", "exploiter"];
 
+// Deterministic comparator for [teamId, score] entries : sort by score desc,
+// then alphabetically by team display_name asc (so ties always resolve the
+// same way across refreshes).
+function scoreThenName(a, b) {
+  if (b[1] !== a[1]) return b[1] - a[1];
+  const aName = teams.find((tm) => tm.id === a[0])?.display_name || a[0];
+  const bName = teams.find((tm) => tm.id === b[0])?.display_name || b[0];
+  return aName.localeCompare(bName);
+}
+
 loadTeamContext({
   allowAdmin: true,
   onLoaded: async (ctx) => {
     context = ctx;
     els.main.hidden = false;
+    els.main.classList.toggle("admin-view", !!ctx.isAdmin);
     await Promise.all([loadTournament(), loadTeams(), loadLeaderboard(), loadMatches()]);
     computeProfiles();
     pickFocusedTeam();
@@ -246,7 +255,7 @@ function pickFocusedTeam() {
     return;
   }
   if (leaderboard?.scores) {
-    const sorted = Object.entries(leaderboard.scores).sort((a, b) => b[1] - a[1]);
+    const sorted = Object.entries(leaderboard.scores).sort(scoreThenName);
     if (sorted.length > 0) focusedTeamId = sorted[0][0];
   }
 }
@@ -256,12 +265,21 @@ function renderHeader() {
   if (!tournamentData) return;
   els.tTitle.textContent = tournamentData.name;
   const statusKey = tournamentData.status || "open_submission";
-  els.tMeta.textContent = t("tournament.meta", {
+  let metaText = t("tournament.meta", {
     phase: tournamentData.phase,
     turns: tournamentData.nb_turns,
     noise: (tournamentData.noise_level * 100).toFixed(0),
     status: t(`admin.status.${statusKey}`)
   });
+  // Append the relevant date (completed → completed_at, otherwise launched_at
+  // or created_at) so the team can locate the tournament in time without us
+  // taking up a column in the matches table.
+  const locale = document.documentElement.lang === "fr" ? "fr-FR" : "en-GB";
+  const dateTs = tournamentData.completed_at || tournamentData.launched_at || tournamentData.created_at;
+  if (dateTs?.toDate) {
+    metaText += " · " + dateTs.toDate().toLocaleDateString(locale);
+  }
+  els.tMeta.textContent = metaText;
 
   // Show "empty" banner if neither leaderboard nor matches yet
   const hasData = (leaderboard?.scores && Object.keys(leaderboard.scores).length > 0) || matches.length > 0;
@@ -270,6 +288,12 @@ function renderHeader() {
 
 // ---------- Hero ----------
 function renderHero() {
+  // Admin viewers don't need the focused-team card — they're not playing,
+  // and the rest of the dashboard already covers what they need.
+  if (context?.isAdmin) {
+    els.heroCard.hidden = true;
+    return;
+  }
   if (!focusedTeamId) {
     els.heroCard.hidden = true;
     return;
@@ -288,7 +312,7 @@ function renderHero() {
   // Rank from scores
   let rank = "—";
   if (lb.scores) {
-    const sorted = Object.entries(lb.scores).sort((a, b) => b[1] - a[1]);
+    const sorted = Object.entries(lb.scores).sort(scoreThenName);
     const idx = sorted.findIndex(([id]) => id === focusedTeamId);
     if (idx >= 0) rank = `#${idx + 1}`;
   }
@@ -297,8 +321,6 @@ function renderHero() {
   els.heroName.textContent = (team.emoji ? team.emoji + " " : "") + team.display_name;
   els.heroYouBadge.hidden = team.id !== context?.uid;
   els.heroScore.textContent = score ?? "—";
-  els.heroWins.textContent = wins ?? "—";
-  els.heroLosses.textContent = losses ?? "—";
   els.heroCoop.textContent = coop != null ? `${Math.round(coop * 100)}%` : "—";
   els.heroAvg.textContent = avg != null ? avg.toFixed(2) : "—";
   els.heroNarrative.textContent = narrativeFor(focusedTeamId);
@@ -319,59 +341,41 @@ function renderPodium() {
   const sortedAll = Object.entries(leaderboard.scores)
     .map(([id, score]) => ({ id, score, team: teams.find((tm) => tm.id === id) }))
     .filter((e) => e.team)
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return (a.team.display_name || "").localeCompare(b.team.display_name || "");
+    });
   if (sortedAll.length === 0) return;
 
-  // Top 3 → overlay on the leaderboard image
-  const top3 = sortedAll.slice(0, 3);
+  // Bare podium image — no overlays. Team identities live in the list below.
   const wrap = document.createElement("div");
   wrap.className = "podium-image-wrap";
   wrap.innerHTML = `<img src="imgs/leaderboard.png" alt="" class="podium-image" />`;
-  top3.forEach((entry, idx) => {
-    const rank = idx + 1;
-    const overlay = document.createElement("div");
-    overlay.className = `podium-overlay podium-overlay-${rank}`;
-    overlay.innerHTML = `
-      <div class="podium-team-emoji">${entry.team.emoji ? escapeHtml(entry.team.emoji) : ""}</div>
-      <div class="podium-team-name">${escapeHtml(entry.team.display_name)}</div>
-      <div class="podium-team-score">${entry.score}</div>
-    `;
-    wrap.appendChild(overlay);
-  });
   els.podium.appendChild(wrap);
 
   if (!els.podiumExtras) return;
 
-  // Ranks 4–6 below the podium. For team users we also highlight their row
-  // (and append their actual rank if they're outside top 6). Admins see the
-  // plain top 6 without any highlight, since they aren't a participant.
+  // Full ranked list — every team. Container is scrollable (no visible
+  // scrollbar). Viewer's own team is highlighted in cyan.
   const isAdmin = !!context?.isAdmin;
   const myTeamId = isAdmin ? null : context?.uid;
-
-  const extras = sortedAll.slice(3, 6);
-  extras.forEach((entry, i) => {
-    const rank = i + 4;
+  sortedAll.forEach((entry, i) => {
+    const rank = i + 1;
     const isMe = myTeamId && entry.id === myTeamId;
     els.podiumExtras.appendChild(buildExtraRow(rank, entry, isMe));
   });
-
-  if (myTeamId) {
-    const myIdx = sortedAll.findIndex((e) => e.id === myTeamId);
-    if (myIdx >= 6) {
-      const sep = document.createElement("li");
-      sep.className = "podium-extra-sep";
-      sep.innerHTML = "···";
-      els.podiumExtras.appendChild(sep);
-      els.podiumExtras.appendChild(buildExtraRow(myIdx + 1, sortedAll[myIdx], true));
-    }
-  }
 }
 
 function buildExtraRow(rank, entry, isMe) {
   const li = document.createElement("li");
-  li.className = "podium-extra" + (isMe ? " you" : "");
+  let cls = "podium-extra";
+  if (rank >= 1 && rank <= 3) cls += ` podium-rank-${rank}`;
+  if (isMe) cls += " you";
+  li.className = cls;
+  const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
+  const rankLabel = medal ? medal : `#${rank}`;
   li.innerHTML = `
-    <span class="podium-extra-rank">#${rank}</span>
+    <span class="podium-extra-rank">${rankLabel}</span>
     <span class="podium-extra-name">${entry.team.emoji ? escapeHtml(entry.team.emoji) + " " : ""}${escapeHtml(entry.team.display_name)}</span>
     <span class="podium-extra-score">${entry.score}</span>
   `;
@@ -380,6 +384,8 @@ function buildExtraRow(rank, entry, isMe) {
 
 // ---------- Behavioral radar ----------
 async function renderRadar() {
+  // Admin viewers don't get the behavioral radar — it's a team-side feature.
+  if (context?.isAdmin) return;
   if (!focusedTeamId) return;
   const stats = teamProfile[focusedTeamId]?.stats;
   if (!stats) return;
@@ -469,7 +475,12 @@ function renderMatrix() {
 
   // Pick teams to display : the focused team first, then others sorted by score desc.
   let ordered = [...teams];
-  ordered.sort((a, b) => (leaderboard?.scores?.[b.id] ?? 0) - (leaderboard?.scores?.[a.id] ?? 0));
+  ordered.sort((a, b) => {
+    const da = leaderboard?.scores?.[a.id] ?? 0;
+    const dbb = leaderboard?.scores?.[b.id] ?? 0;
+    if (dbb !== da) return dbb - da;
+    return (a.display_name || "").localeCompare(b.display_name || "");
+  });
   if (focusedTeamId) {
     const idx = ordered.findIndex((tm) => tm.id === focusedTeamId);
     if (idx > 0) ordered = [ordered[idx], ...ordered.filter((tm) => tm.id !== focusedTeamId)];
@@ -512,10 +523,20 @@ function renderMatrix() {
 
 // ---------- Outcomes donut ----------
 async function renderOutcomes() {
-  if (!focusedTeamId || !leaderboard) return;
-  const w = leaderboard.wins?.[focusedTeamId] || 0;
-  const l = leaderboard.losses?.[focusedTeamId] || 0;
-  const tt = leaderboard.ties?.[focusedTeamId] || 0;
+  if (!leaderboard) return;
+  let w, l, tt;
+  if (context?.isAdmin) {
+    // Aggregate across all teams. In a round-robin, sum(wins) == sum(losses)
+    // (every win has a matching loss) and sum(ties) is 2× the tied match count.
+    w = Object.values(leaderboard.wins || {}).reduce((a, b) => a + b, 0);
+    l = Object.values(leaderboard.losses || {}).reduce((a, b) => a + b, 0);
+    tt = Object.values(leaderboard.ties || {}).reduce((a, b) => a + b, 0);
+  } else {
+    if (!focusedTeamId) return;
+    w = leaderboard.wins?.[focusedTeamId] || 0;
+    l = leaderboard.losses?.[focusedTeamId] || 0;
+    tt = leaderboard.ties?.[focusedTeamId] || 0;
+  }
   const total = w + l + tt;
   els.outcomesTotal.textContent = total;
   els.outcomesWins.textContent = `${w} ${t("match.result.win_short")} (${total ? Math.round(w / total * 100) : 0}%)`;
@@ -559,7 +580,10 @@ function renderMatches() {
   els.matchesEmpty.hidden = true;
   els.matchesContent.hidden = false;
   populateTeamFilters();
-  if (focusedTeamId) els.filterTeam.value = focusedTeamId;
+  // Team users pre-filter to their own team (own matches first).
+  // Admins start with "All" so the colour-coded WIN badges show.
+  const myTeam = !context?.isAdmin && teams.find((tm) => tm.id === context?.uid);
+  els.filterTeam.value = myTeam ? myTeam.id : "all";
   applyMatchFilters();
 }
 
@@ -625,8 +649,6 @@ function renderMatchesTable(list, referenceTeamId) {
   }
   els.matchesNoResult.hidden = true;
 
-  const locale = document.documentElement.lang === "fr" ? "fr-FR" : "en-GB";
-
   for (const m of list) {
     const teamA = teams.find((tm) => tm.id === m.team_a_id);
     const teamB = teams.find((tm) => tm.id === m.team_b_id);
@@ -634,7 +656,6 @@ function renderMatchesTable(list, referenceTeamId) {
     const bName = teamB?.display_name || m.team_b_name || m.team_b_id || "?";
     const aEmoji = teamA?.emoji || "";
     const bEmoji = teamB?.emoji || "";
-    const date = m.played_at?.toDate?.()?.toLocaleString(locale, { dateStyle: "short", timeStyle: "short" }) || "—";
 
     let resultLabel, resultClass;
     if (referenceTeamId && referenceTeamId !== "all") {
@@ -645,19 +666,20 @@ function renderMatchesTable(list, referenceTeamId) {
       else if (mine < opp) { resultLabel = t("match.result.loss_short"); resultClass = "ko"; }
       else { resultLabel = t("match.result.tie_short"); resultClass = ""; }
     } else {
-      if (m.score_a > m.score_b) { resultLabel = aName; resultClass = "ok"; }
-      else if (m.score_a < m.score_b) { resultLabel = bName; resultClass = "ok"; }
+      // No reference team : show WIN colored to match the winning column
+      // (team A is the cyan column, team B is the salmon column).
+      if (m.score_a > m.score_b) { resultLabel = t("match.result.win_short"); resultClass = "win-a"; }
+      else if (m.score_a < m.score_b) { resultLabel = t("match.result.win_short"); resultClass = "win-b"; }
       else { resultLabel = t("match.result.tie_short"); resultClass = ""; }
     }
 
     const tr = document.createElement("tr");
     tr.dataset.matchId = m.id;
     tr.innerHTML = `
-      <td class="num small muted">${escapeHtml(date)}</td>
       <td>
         <span class="match-row-team">
-          <img class="match-row-avatar" src="${avatarUrl(aName)}" alt="" loading="lazy" />
-          ${aEmoji ? escapeHtml(aEmoji) + " " : ""}${escapeHtml(aName)}
+          ${aEmoji ? `<span class="match-row-emoji">${escapeHtml(aEmoji)}</span>` : ""}
+          ${escapeHtml(aName)}
         </span>
       </td>
       <td class="num match-row-score">
@@ -667,8 +689,8 @@ function renderMatchesTable(list, referenceTeamId) {
       </td>
       <td>
         <span class="match-row-team">
-          <img class="match-row-avatar" src="${avatarUrl(bName)}" alt="" loading="lazy" />
-          ${bEmoji ? escapeHtml(bEmoji) + " " : ""}${escapeHtml(bName)}
+          ${bEmoji ? `<span class="match-row-emoji">${escapeHtml(bEmoji)}</span>` : ""}
+          ${escapeHtml(bName)}
         </span>
       </td>
       <td><span class="badge ${resultClass}">${escapeHtml(resultLabel)}</span></td>
@@ -708,10 +730,10 @@ function selectMatch(matchId) {
   const tA = teams.find((tm) => tm.id === a_id) || { display_name: a_name || a_id, emoji: "" };
   const tB = teams.find((tm) => tm.id === b_id) || { display_name: b_name || b_id, emoji: "" };
 
-  els.prevTeamAAvatar.src = avatarUrl(a_name || a_id);
-  els.prevTeamBAvatar.src = avatarUrl(b_name || b_id);
-  els.prevTeamAName.textContent = (tA.emoji ? tA.emoji + " " : "") + tA.display_name;
-  els.prevTeamBName.textContent = (tB.emoji ? tB.emoji + " " : "") + tB.display_name;
+  els.prevTeamAEmoji.textContent = tA.emoji || "▣";
+  els.prevTeamBEmoji.textContent = tB.emoji || "▣";
+  els.prevTeamAName.textContent = tA.display_name;
+  els.prevTeamBName.textContent = tB.display_name;
   els.prevScoreA.textContent = sa;
   els.prevScoreB.textContent = sb;
 
@@ -727,21 +749,22 @@ function selectMatch(matchId) {
 
   renderPreviewHistory(ha, hb, tA, tB);
 
-  els.previewNarrative.textContent = previewNarrative(ha, hb, sa, sb);
+  els.previewNarrative.textContent = previewNarrative(ha, hb, sa, sb, tA, tB);
 
   els.previewEmpty.hidden = true;
   els.previewContent.hidden = false;
 }
 
-function previewNarrative(ha, hb, sa, sb) {
+function previewNarrative(ha, hb, sa, sb, tA, tB) {
   if (!ha || !hb) return "";
   const coopA = rateOfC(ha), coopB = rateOfC(hb);
-  if (sa > sb && coopA >= 0.6) return t("tournament.view.preview.narr.win_coop");
-  if (sa > sb && coopA < 0.3) return t("tournament.view.preview.narr.win_aggr");
-  if (sa < sb && coopA >= 0.6) return t("tournament.view.preview.narr.loss_coop");
-  if (sa < sb) return t("tournament.view.preview.narr.loss_aggr");
-  if (sa === sb && coopA >= 0.6 && coopB >= 0.6) return t("tournament.view.preview.narr.tie_coop");
-  return t("tournament.view.preview.narr.tie_other");
+  const params = { team_a: tA?.display_name || "?", team_b: tB?.display_name || "?" };
+  if (sa > sb && coopA >= 0.6) return t("tournament.view.preview.narr.win_coop", params);
+  if (sa > sb && coopA < 0.3) return t("tournament.view.preview.narr.win_aggr", params);
+  if (sa < sb && coopA >= 0.6) return t("tournament.view.preview.narr.loss_coop", params);
+  if (sa < sb) return t("tournament.view.preview.narr.loss_aggr", params);
+  if (sa === sb && coopA >= 0.6 && coopB >= 0.6) return t("tournament.view.preview.narr.tie_coop", params);
+  return t("tournament.view.preview.narr.tie_other", params);
 }
 
 function renderPreviewHistory(ha, hb, teamA, teamB) {

@@ -1747,6 +1747,27 @@ body[data-page="playground"] .content-header {
   gap: 0.5rem;
 }
 
+/* Compact "re-run benchmarks" button in the agent profile card head. */
+.btn-rerun {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 0.4rem 0.75rem;
+  background: transparent;
+  border: 1px solid var(--cyan-border);
+  color: var(--cyan);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.btn-rerun:hover:not(:disabled) {
+  background: rgba(95, 227, 216, 0.08);
+  border-color: var(--cyan);
+}
+.btn-rerun:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .pg-card-title {
   font-family: "JetBrains Mono", monospace;
   font-size: 0.7rem;
@@ -2399,9 +2420,13 @@ body[data-page="playground"] .content-header {
    Tournaments — team list & detail
    ============================================================ */
 .tournament-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+  width: 100%;
 }
 
 .tournament-list-card {
@@ -2415,6 +2440,8 @@ body[data-page="playground"] .content-header {
   text-decoration: none;
   color: var(--text);
   transition: border-color 0.15s, background-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .tournament-list-card:hover {
@@ -3042,7 +3069,35 @@ body[data-page="admin-tournaments"]:not(.dense) .content-header { margin-bottom:
 }
 
 /* Match table */
-.match-table-wrap { overflow-x: auto; }
+.match-table-wrap {
+  overflow: auto;
+  max-height: 460px;
+  -webkit-overflow-scrolling: touch;
+  /* Subtle fade at the right edge (horizontal hint) AND at the bottom edge
+     (vertical hint) so the user can see content continues past the viewport. */
+  mask-image:
+    linear-gradient(90deg, #000 0, #000 calc(100% - 14px), transparent 100%),
+    linear-gradient(180deg, #000 0, #000 calc(100% - 18px), transparent 100%);
+  mask-composite: intersect;
+  -webkit-mask-image:
+    linear-gradient(90deg, #000 0, #000 calc(100% - 14px), transparent 100%),
+    linear-gradient(180deg, #000 0, #000 calc(100% - 18px), transparent 100%);
+  -webkit-mask-composite: source-in;
+  /* Firefox thin cyan scrollbar — there's no way to hide just one axis in
+     Firefox so both show. Vertical is the one we mostly need. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(95, 227, 216, 0.4) transparent;
+}
+/* Webkit : vertical scrollbar visible & themed, horizontal hidden. */
+.match-table-wrap::-webkit-scrollbar { width: 6px; height: 0; }
+.match-table-wrap::-webkit-scrollbar:horizontal { display: none; }
+.match-table-wrap::-webkit-scrollbar-track { background: transparent; }
+.match-table-wrap::-webkit-scrollbar-thumb {
+  background: rgba(95, 227, 216, 0.3);
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+.match-table-wrap::-webkit-scrollbar-thumb:hover { background: rgba(95, 227, 216, 0.7); }
 
 .match-table {
   width: 100%;
@@ -3081,12 +3136,16 @@ body[data-page="admin-tournaments"]:not(.dense) .content-header { margin-bottom:
   white-space: nowrap;
 }
 
-.match-row-avatar {
+.match-row-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 24px;
   height: 24px;
-  border-radius: 50%;
-  background: rgba(95,227,216,0.06);
-  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(95,227,216,0.08);
+  border: 1px solid var(--cyan-border);
+  font-size: 0.95rem;
   flex-shrink: 0;
 }
 
@@ -3109,6 +3168,25 @@ body[data-page="admin-tournaments"]:not(.dense) .content-header { margin-bottom:
 }
 
 .match-row-action:hover { background: rgba(95,227,216,0.08); }
+
+/* WIN badge colored to match which side (column) won. Cyan = team A column,
+   salmon = team B column. Keeps the result cell compact even on long names. */
+.badge.win-a {
+  background: rgba(95, 227, 216, 0.18);
+  color: #5fe3d8;
+  border-color: rgba(95, 227, 216, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+.badge.win-b {
+  background: rgba(255, 138, 138, 0.18);
+  color: #ff8a8a;
+  border-color: rgba(255, 138, 138, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
 
 /* ============================================================
    Tournament analysis page — multi-section dashboard
@@ -3136,25 +3214,9 @@ body[data-page="admin-tournaments"]:not(.dense) .content-header { margin-bottom:
 
 .hero-team-card {
   display: flex;
-  gap: 1.2rem;
-  align-items: stretch;
   background: linear-gradient(135deg, rgba(245, 185, 66, 0.12) 0%, rgba(95, 227, 216, 0.05) 100%);
   border-color: rgba(245, 185, 66, 0.3);
 }
-
-.hero-team-emblem {
-  flex-shrink: 0;
-  width: 88px;
-  height: 88px;
-  border-radius: 12px;
-  background: rgba(245, 185, 66, 0.15);
-  border: 1px solid rgba(245, 185, 66, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  align-self: flex-start;
-}
-.hero-team-emblem img { width: 70%; height: 70%; object-fit: contain; opacity: 0.9; }
 
 .hero-team-body { flex: 1; min-width: 0; }
 
@@ -3182,8 +3244,8 @@ body[data-page="admin-tournaments"]:not(.dense) .content-header { margin-bottom:
 
 .hero-team-stats {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
+  gap: 0.7rem;
   margin-bottom: 0.85rem;
 }
 .hero-team-stats > div { display: flex; flex-direction: column; gap: 0.15rem; }
@@ -3209,17 +3271,34 @@ body[data-page="admin-tournaments"]:not(.dense) .content-header { margin-bottom:
 }
 
 .hero-podium-card { display: flex; flex-direction: column; }
-.hero-podium-card .podium { margin: 0; display: flex; align-items: center; }
+.hero-podium-card .podium {
+  margin: 0;
+  flex: 1;                  /* take remaining vertical space */
+  display: flex;
+  align-items: center;      /* center podium image vertically */
+  justify-content: center;
+}
 .hero-podium-card .podium-image-wrap { max-width: 100%; }
 
 .podium-extras {
   list-style: none;
-  padding: 0;
-  margin: 0.85rem 0 0;
+  padding: 0 0.1rem 0.2rem;
+  margin: 0.85rem -0.1rem 0;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  /* Scrollable inside the card, no visible scrollbar, gentle inertial feel. */
+  max-height: 280px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  /* Soft fade at top and bottom edges to hint at scrollable content. */
+  mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
 }
+/* Hide the scrollbar visually but keep scrolling functional. */
+.podium-extras::-webkit-scrollbar { width: 0; height: 0; display: none; }
+.podium-extras { scrollbar-width: none; }
 
 .podium-extra {
   display: grid;
@@ -3236,6 +3315,34 @@ body[data-page="admin-tournaments"]:not(.dense) .content-header { margin-bottom:
 .podium-extra.you {
   border-color: var(--cyan);
   background: rgba(95,227,216,0.06);
+}
+
+/* Gold / silver / bronze accents for ranks 1–3. The inset box-shadow on the
+   left edge survives the `you` override (which only changes border colour),
+   so a viewer in the top 3 still gets BOTH their medal accent AND the cyan
+   highlight. */
+.podium-extra.podium-rank-1 {
+  box-shadow: inset 3px 0 0 #f5b942;
+  background: linear-gradient(90deg, rgba(245,185,66,0.10) 0%, rgba(245,185,66,0) 60%);
+}
+.podium-extra.podium-rank-2 {
+  box-shadow: inset 3px 0 0 #c0c8d0;
+  background: linear-gradient(90deg, rgba(192,200,208,0.10) 0%, rgba(192,200,208,0) 60%);
+}
+.podium-extra.podium-rank-3 {
+  box-shadow: inset 3px 0 0 #c4814a;
+  background: linear-gradient(90deg, rgba(196,129,74,0.10) 0%, rgba(196,129,74,0) 60%);
+}
+/* When the viewer is in the top 3 : keep their cyan background but preserve
+   the medal accent on the left edge. */
+.podium-extra.podium-rank-1.you,
+.podium-extra.podium-rank-2.you,
+.podium-extra.podium-rank-3.you {
+  background: rgba(95,227,216,0.06);
+}
+.podium-extra-rank {
+  /* Make the rank label slightly bigger so emojis read clearly. */
+  font-size: 0.9rem;
 }
 
 .podium-extra-rank {
@@ -3275,6 +3382,82 @@ body[data-page="admin-tournaments"]:not(.dense) .content-header { margin-bottom:
   position: relative;
   width: 100%;
   height: 220px;
+}
+
+/* Team view of a tournament (tournament-view.html when NOT admin) :
+   restructure the whole dashboard into one grid with explicit areas.
+   Scoped by `:has(.hero-row)` so it only targets tournament-view, not
+   tournaments.html (which shares data-page="tournaments-list"). */
+#main:not(.admin-view):has(.hero-row) .mid-matrix-card { display: none; }
+#main:not(.admin-view):has(.hero-row) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.95fr);
+  grid-template-areas:
+    "team    outcomes radar"
+    "matches matches  podium"
+    "preview preview  preview";
+  gap: 1rem;
+}
+#main:not(.admin-view):has(.hero-row) .hero-row,
+#main:not(.admin-view):has(.hero-row) .mid-row,
+#main:not(.admin-view):has(.hero-row) .bottom-row { display: contents; }
+#main:not(.admin-view):has(.hero-row) .hero-team-card      { grid-area: team; min-width: 0; }
+#main:not(.admin-view):has(.hero-row) .hero-podium-card    { grid-area: podium; min-width: 0; }
+#main:not(.admin-view):has(.hero-row) .hero-radar-card     { grid-area: radar; min-width: 0; }
+#main:not(.admin-view):has(.hero-row) .bottom-matches-card { grid-area: matches; min-width: 0; }
+#main:not(.admin-view):has(.hero-row) .mid-donut-card      { grid-area: outcomes; min-width: 0; }
+#main:not(.admin-view):has(.hero-row) .bottom-preview-card { grid-area: preview; min-width: 0; }
+
+@media (max-width: 1100px) {
+  #main:not(.admin-view):has(.hero-row) {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "team"
+      "outcomes"
+      "radar"
+      "matches"
+      "podium"
+      "preview";
+  }
+}
+
+/* Admin view : drop the focused-team card and the behavioral radar.
+   Restructure the whole dashboard as one grid with explicit areas so
+   there are no empty cells. `display: contents` flattens the row
+   wrappers (.hero-row, .mid-row, .bottom-row) into the main grid. */
+.admin-view .hero-team-card,
+.admin-view .hero-radar-card { display: none; }
+.admin-view#main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    "podium  outcomes"
+    "matrix  matrix"
+    "matches preview";
+  gap: 1rem;
+}
+.admin-view .hero-row,
+.admin-view .mid-row,
+.admin-view .bottom-row { display: contents; }
+.admin-view .hero-podium-card  { grid-area: podium; }
+.admin-view .mid-donut-card    { grid-area: outcomes; }
+.admin-view .mid-matrix-card   { grid-area: matrix; }
+.admin-view .bottom-matches-card { grid-area: matches; min-width: 0; }
+.admin-view .bottom-preview-card { grid-area: preview; min-width: 0; }
+.admin-view .mid-matrix-card,
+.admin-view .mid-donut-card,
+.admin-view .hero-podium-card { min-width: 0; }
+
+@media (max-width: 1100px) {
+  .admin-view#main {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "podium"
+      "outcomes"
+      "matrix"
+      "matches"
+      "preview";
+  }
 }
 
 /* Mid row */
@@ -3404,12 +3587,16 @@ body[data-page="admin-tournaments"]:not(.dense) .content-header { margin-bottom:
   text-align: center;
 }
 
-.preview-avatar {
+.preview-emoji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 54px;
   height: 54px;
-  border-radius: 50%;
-  background: rgba(95,227,216,0.06);
-  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(95,227,216,0.08);
+  border: 1px solid var(--cyan-border);
+  font-size: 2rem;
 }
 
 .preview-team-name {
@@ -3448,6 +3635,215 @@ body[data-page="admin-tournaments"]:not(.dense) .content-header { margin-bottom:
 .preview-narrative {
   margin-top: 0.85rem;
   line-height: 1.5;
+}
+
+/* ============================================================
+   Team home dashboard — 3-card grid (profile / quick stats / last match)
+   ============================================================ */
+.team-dash {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr;
+  gap: 0.85rem;
+  margin: 1.25rem 0;
+}
+@media (max-width: 1000px) {
+  .team-dash { grid-template-columns: 1fr; }
+}
+
+.team-dash-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ---- Card 1 : Profile ---- */
+.team-dash-profile-body {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 0.85rem;
+  align-items: center;
+}
+@media (max-width: 600px) {
+  .team-dash-profile-body { grid-template-columns: 1fr; }
+}
+
+.profile-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.profile-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.profile-stat-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.profile-stat-big {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 800;
+  font-size: 1.5rem;
+  color: var(--cyan);
+}
+.profile-stat-rank {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 800;
+  font-size: 1.5rem;
+}
+.profile-stat-trend {
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.profile-stat-trend.up { color: #7ddca0; }
+.profile-stat-trend.down { color: #ff8a8a; }
+.profile-stat-trend.flat { color: var(--muted); }
+
+.profile-radar-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-height: 240px;
+}
+.profile-radar-wrap canvas { width: 100% !important; height: 100% !important; }
+
+/* ---- Card 2 : Quick stats ---- */
+.team-dash-quickstats { gap: 0.6rem; }
+.quickstats-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.quickstats-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.quickstats-list li:last-child { border-bottom: none; }
+.quickstats-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.quickstats-value {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--cyan);
+}
+
+.quickstats-chart-wrap {
+  width: 100%;
+  height: 100px;
+  margin-bottom: 0.45rem;
+}
+
+.quickstats-legend {
+  display: flex;
+  gap: 1rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  justify-content: center;
+}
+.quickstats-legend > span { display: flex; align-items: center; gap: 0.4rem; }
+
+/* ---- Card 3 : Last match ---- */
+.team-dash-lastmatch { gap: 0.55rem; }
+.lastmatch-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.lastmatch-vs {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.lastmatch-result-badge { margin: 0.45rem 0 0.55rem; }
+.lastmatch-result-badge .badge {
+  font-size: 0.85rem;
+  padding: 0.3rem 0.85rem;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+.lastmatch-score {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 800;
+  font-size: 1.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+.lastmatch-score > span:first-child { color: #5fe3d8; }
+.lastmatch-score > span:last-child { color: #ff8a8a; }
+
+.lastmatch-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  margin: 0.55rem 0;
+}
+.lastmatch-meta > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+}
+
+.lastmatch-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: auto;
+  padding: 0.6rem 0.85rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+}
+.lastmatch-cta:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: rgba(95,227,216,0.06);
+}
+
+.lasttournament-rank {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin: 0.55rem 0;
+}
+.lasttournament-rank-num {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 800;
+  font-size: 1.85rem;
+  color: #f5b942;
+}
+.lasttournament-rank-of {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.9rem;
 }
 
 /* ============================================================
@@ -3647,6 +4043,23 @@ body.dense .card-section-title.small { font-size: 0.65rem; }
   padding: 0.55rem 0.85rem;
 }
 .team-row-admin.team-row-header:hover { background: rgba(255,255,255,0.02); }
+.team-row-admin.team-row-header .sort-header {
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: color 0.12s;
+}
+.team-row-admin.team-row-header .sort-header.num { justify-content: flex-end; }
+.team-row-admin.team-row-header .sort-header:hover { color: var(--text); }
+.team-row-admin.team-row-header .sort-header.active { color: var(--cyan); }
+.team-row-admin.team-row-header .sort-arrow {
+  font-size: 0.6rem;
+  letter-spacing: 0;
+  width: 8px;
+  display: inline-block;
+}
 .team-row-emoji {
   font-size: 1.1rem;
   display: inline-flex;
@@ -3679,6 +4092,20 @@ body.dense .card-section-title.small { font-size: 0.65rem; }
   }
   .team-row-email { display: none; }
 }
+
+/* Hall of Fame rows view — 6 columns, no edit/delete, no strategies. */
+.team-row-admin.hof-row {
+  grid-template-columns: 32px minmax(120px, 1.4fr) minmax(140px, 1.6fr) 90px 90px 110px;
+}
+@media (max-width: 760px) {
+  .team-row-admin.hof-row {
+    grid-template-columns: 32px minmax(100px, 1fr) 80px 80px 80px;
+  }
+  .team-row-admin.hof-row .team-row-email { display: none; }
+}
+
+/* Tighten the filter bar for HoF (no second select, just search + reset + toggle) */
+.hof-filter-bar { grid-template-columns: minmax(180px, 1fr) auto auto; }
 
 /* Team cards grid — compact command-center cards */
 .teams-grid {
@@ -4252,6 +4679,9 @@ body.dense .card-section-title.small { font-size: 0.65rem; }
   pointer-events: none;
 }
 
+/* Each overlay occupies a fixed % of the podium image width, centered on
+   its pedestal. Text is sized in cqi (container query inline) so it scales
+   down when the card narrows and stays inside the pedestal face. */
 .podium-overlay {
   position: absolute;
   transform: translate(-50%, 0);
@@ -4259,29 +4689,36 @@ body.dense .card-section-title.small { font-size: 0.65rem; }
   line-height: 1.2;
   pointer-events: none;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  width: 28%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05em;
+  overflow: hidden;
 }
+.podium-image-wrap { container-type: inline-size; }
 
 .podium-team-emoji {
-  font-size: 1.4rem;
-  margin-bottom: 0.15rem;
+  font-size: clamp(0.85rem, 4.5cqi, 1.4rem);
+  line-height: 1;
 }
 
 .podium-team-name {
   font-family: "Space Grotesk", sans-serif;
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: clamp(0.6rem, 3.2cqi, 0.95rem);
   color: #f8f4ee;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 9rem;
+  max-width: 100%;
 }
 
 .podium-team-score {
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.85rem;
+  font-size: clamp(0.55rem, 2.6cqi, 0.85rem);
   color: rgba(255, 255, 255, 0.85);
-  margin-top: 0.1rem;
+  margin-top: 0.05em;
 }
 
 /* Gold pedestal — center, tallest. */
@@ -4300,8 +4737,8 @@ body.dense .card-section-title.small { font-size: 0.65rem; }
 
 /* Bronze pedestal — right, shortest. */
 .podium-overlay-3 {
-  left: 78%;
-  top: 76%;
+  left: 85%;
+  top: 70%;
 }
 .podium-overlay-3 .podium-team-name { color: #fbe7d4; }
 

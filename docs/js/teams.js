@@ -65,11 +65,13 @@ let teams = [];                    // [{id, display_name, emoji, email, created_
 let tournaments = [];              // [{id, name, status, nb_turns, noise_level}]
 let participationsByTeam = {};     // teamId → [{tournamentId, status, bot?}]
 let strategiesCountByTeam = {};    // teamId → count
-let eloByTeam = {};                // teamId → number (computed)
+let pointsByTeam = {};             // teamId → total points across all tournaments
 let recordByTeam = {};             // teamId → { wins, losses, ties }
 let selectedTeamId = null;
 let editingTeamId = null;
 let viewMode = localStorage.getItem("axelrod.teams.view") || "cards"; // "cards" | "rows"
+// Sort state only meaningful in "rows" mode. Persists in localStorage.
+let sortState = JSON.parse(localStorage.getItem("axelrod.teams.sort") || '{"col":"team","dir":"asc"}');
 
 onAuth(async (user) => {
   if (!user) { window.location.href = "index.html"; return; }
@@ -94,14 +96,14 @@ async function refresh() {
   }
 }
 
-// Loads every match across all tournaments, processes them chronologically
-// to compute ELO ratings + win/loss/tie records per team. Single global ELO
-// across all tournaments (resets between sessions, not persisted in DB).
+// Loads every match across all tournaments and sums up total points per team
+// (raw score from the IPD payoff matrix : CC=3 each, DC=5/0, DD=1 each).
+// Also tracks W/L/T records. No skill-adjusted rating — pure point accumulation.
 async function loadAllMatchesAndCompute() {
-  eloByTeam = {};
+  pointsByTeam = {};
   recordByTeam = {};
   for (const tm of teams) {
-    eloByTeam[tm.id] = 1500;
+    pointsByTeam[tm.id] = 0;
     recordByTeam[tm.id] = { wins: 0, losses: 0, ties: 0 };
   }
   const all = [];
@@ -111,23 +113,16 @@ async function loadAllMatchesAndCompute() {
       snap.forEach((d) => all.push({ id: d.id, ...d.data() }));
     } catch { /* ignore */ }
   }));
-  // Chronological order matters for ELO updates.
-  all.sort((a, b) => (a.played_at?.toMillis?.() ?? 0) - (b.played_at?.toMillis?.() ?? 0));
 
-  const K = 32;
   for (const m of all) {
     const a = m.team_a_id, b = m.team_b_id;
-    if (!eloByTeam[a] || !eloByTeam[b]) continue;  // skip orphans
+    if (!(a in pointsByTeam) || !(b in pointsByTeam)) continue;  // skip orphans
     const sa = m.score_a ?? 0, sb = m.score_b ?? 0;
-    let Sa, Sb;
-    if (sa > sb) { Sa = 1; Sb = 0; recordByTeam[a].wins++; recordByTeam[b].losses++; }
-    else if (sa < sb) { Sa = 0; Sb = 1; recordByTeam[a].losses++; recordByTeam[b].wins++; }
-    else { Sa = 0.5; Sb = 0.5; recordByTeam[a].ties++; recordByTeam[b].ties++; }
-    const Ra = eloByTeam[a], Rb = eloByTeam[b];
-    const Ea = 1 / (1 + Math.pow(10, (Rb - Ra) / 400));
-    const Eb = 1 - Ea;
-    eloByTeam[a] = Math.round(Ra + K * (Sa - Ea));
-    eloByTeam[b] = Math.round(Rb + K * (Sb - Eb));
+    pointsByTeam[a] += sa;
+    pointsByTeam[b] += sb;
+    if (sa > sb) { recordByTeam[a].wins++; recordByTeam[b].losses++; }
+    else if (sa < sb) { recordByTeam[a].losses++; recordByTeam[b].wins++; }
+    else { recordByTeam[a].ties++; recordByTeam[b].ties++; }
   }
 }
 
@@ -272,7 +267,7 @@ function renderGrid() {
     const hasBotCount = parts.filter((p) => !!p.botCode).length;
     const koCount = parts.filter((p) => p.botValidationStatus === "error").length;
     const stratN = strategiesCountByTeam[tm.id] || 0;
-    const elo = eloByTeam[tm.id] ?? 1500;
+    const points = pointsByTeam[tm.id] ?? 0;
     const wr = winRateOf(tm.id);
     const wrLabel = wr == null ? "—" : `${Math.round(wr * 100)}%`;
 
@@ -300,7 +295,7 @@ function renderGrid() {
       ${warningMsg ? `<p class="team-card-warning">⚠ ${escapeHtml(warningMsg)}</p>` : ""}
 
       <div class="team-card-stats">
-        <div><span class="team-card-stat-label">${escapeHtml(t("teams.card.stat.elo"))}</span><span class="team-card-stat-value">${elo}</span></div>
+        <div><span class="team-card-stat-label">${escapeHtml(t("teams.card.stat.points"))}</span><span class="team-card-stat-value">${points}</span></div>
         <div><span class="team-card-stat-label">${escapeHtml(t("teams.card.stat.strategies"))}</span><span class="team-card-stat-value">${stratN}</span></div>
         <div><span class="team-card-stat-label">${escapeHtml(t("teams.card.stat.winrate"))}</span><span class="team-card-stat-value">${wrLabel}</span></div>
       </div>
@@ -318,29 +313,95 @@ function renderGrid() {
   wireKebabs();
 }
 
+// Apply sortState ordering to the team list. Returns a new sorted array.
+// Used by the rows view header click handlers.
+function sortTeamsList(list) {
+  const STATUS_ORDER = ["warning", "pending", "active", "idle"];
+  const valueOf = (tm, col) => {
+    const parts = participationsByTeam[tm.id] || [];
+    switch (col) {
+      case "team": return (tm.display_name || "").toLowerCase();
+      case "email": return (tm.email || "").toLowerCase();
+      case "status": {
+        const koCount = parts.filter((p) => p.botValidationStatus === "error").length;
+        const hasBotCount = parts.filter((p) => !!p.botCode).length;
+        if (koCount > 0) return STATUS_ORDER.indexOf("warning");
+        if (parts.length === 0) return STATUS_ORDER.indexOf("idle");
+        if (hasBotCount === 0) return STATUS_ORDER.indexOf("pending");
+        return STATUS_ORDER.indexOf("active");
+      }
+      case "points": return pointsByTeam[tm.id] ?? 0;
+      case "strategies": return strategiesCountByTeam[tm.id] || 0;
+      case "winrate": return winRateOf(tm.id) ?? -1;  // teams w/o data sink to bottom on desc
+      case "tournaments": return parts.length;
+      default: return 0;
+    }
+  };
+  const dir = sortState.dir === "asc" ? 1 : -1;
+  return [...list].sort((a, b) => {
+    const va = valueOf(a, sortState.col);
+    const vb = valueOf(b, sortState.col);
+    let cmp;
+    if (typeof va === "string" || typeof vb === "string") {
+      cmp = String(va).localeCompare(String(vb)) * dir;
+    } else {
+      cmp = (va - vb) * dir;
+    }
+    // Deterministic tie-break by team display_name asc.
+    if (cmp === 0) cmp = (a.display_name || "").localeCompare(b.display_name || "");
+    return cmp;
+  });
+}
+
 // Rows view : one horizontal line per team, same info as a card.
 function renderRowsView(list) {
+  // Sort in place according to sortState before rendering.
+  list = sortTeamsList(list);
+
   const header = document.createElement("div");
   header.className = "team-row-admin team-row-header";
-  header.innerHTML = `
-    <span></span>
-    <span>${escapeHtml(t("teams.row.col.team"))}</span>
-    <span>${escapeHtml(t("teams.row.col.email"))}</span>
-    <span>${escapeHtml(t("teams.row.col.status"))}</span>
-    <span class="num">${escapeHtml(t("teams.card.stat.elo"))}</span>
-    <span class="num">${escapeHtml(t("teams.card.stat.strategies"))}</span>
-    <span class="num">${escapeHtml(t("teams.card.stat.winrate"))}</span>
-    <span class="num">${escapeHtml(t("teams.card.stat.tournaments"))}</span>
-    <span></span>
-  `;
+  const cols = [
+    { key: null, label: "" },
+    { key: "team", label: t("teams.row.col.team") },
+    { key: "email", label: t("teams.row.col.email") },
+    { key: "status", label: t("teams.row.col.status") },
+    { key: "points", label: t("teams.card.stat.points"), num: true },
+    { key: "strategies", label: t("teams.card.stat.strategies"), num: true },
+    { key: "winrate", label: t("teams.card.stat.winrate"), num: true },
+    { key: "tournaments", label: t("teams.card.stat.tournaments"), num: true },
+    { key: null, label: "" }
+  ];
+  header.innerHTML = cols.map((c) => {
+    if (!c.key) return `<span></span>`;
+    const active = sortState.col === c.key;
+    const arrow = active ? (sortState.dir === "asc" ? "▲" : "▼") : "";
+    return `<span class="sort-header ${c.num ? "num" : ""} ${active ? "active" : ""}" data-sort="${c.key}">${escapeHtml(c.label)} <span class="sort-arrow">${arrow}</span></span>`;
+  }).join("");
   els.grid.appendChild(header);
+
+  // Wire sort clicks on the header
+  header.querySelectorAll("[data-sort]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const col = el.dataset.sort;
+      // Numeric columns default to descending on first click; text → ascending.
+      const isNum = ["points", "strategies", "winrate", "tournaments"].includes(col);
+      if (sortState.col === col) {
+        sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
+      } else {
+        sortState.col = col;
+        sortState.dir = isNum ? "desc" : "asc";
+      }
+      localStorage.setItem("axelrod.teams.sort", JSON.stringify(sortState));
+      renderGrid();
+    });
+  });
 
   for (const tm of list) {
     const parts = participationsByTeam[tm.id] || [];
     const hasBotCount = parts.filter((p) => !!p.botCode).length;
     const koCount = parts.filter((p) => p.botValidationStatus === "error").length;
     const stratN = strategiesCountByTeam[tm.id] || 0;
-    const elo = eloByTeam[tm.id] ?? 1500;
+    const points = pointsByTeam[tm.id] ?? 0;
     const wr = winRateOf(tm.id);
     const wrLabel = wr == null ? "—" : `${Math.round(wr * 100)}%`;
 
@@ -358,7 +419,7 @@ function renderRowsView(list) {
       <span class="team-row-name">${escapeHtml(tm.display_name)}</span>
       <span class="team-row-email muted">${escapeHtml(tm.email || "—")}</span>
       <span><span class="badge ${statusClass}">${escapeHtml(status)}</span></span>
-      <span class="num">${elo}</span>
+      <span class="num">${points}</span>
       <span class="num">${stratN}</span>
       <span class="num">${wrLabel}</span>
       <span class="num">${parts.length}</span>
@@ -487,7 +548,7 @@ function renderDetail(teamId) {
 
   const parts = participationsByTeam[teamId] || [];
   const stratN = strategiesCountByTeam[teamId] || 0;
-  const elo = eloByTeam[teamId] ?? 1500;
+  const points = pointsByTeam[teamId] ?? 0;
   const wr = winRateOf(teamId);
   const wrLabel = wr == null ? "—" : `${Math.round(wr * 100)}%`;
   const created = tm.created_at?.toDate?.()?.toLocaleDateString(
@@ -496,7 +557,7 @@ function renderDetail(teamId) {
 
   els.detailSummary.innerHTML = `
     <li><span>${escapeHtml(t("teams.detail.created"))}</span><span>${escapeHtml(created)}</span></li>
-    <li><span>${escapeHtml(t("teams.detail.elo"))}</span><span>${elo}</span></li>
+    <li><span>${escapeHtml(t("teams.detail.points"))}</span><span>${points}</span></li>
     <li><span>${escapeHtml(t("teams.detail.winrate"))}</span><span>${wrLabel}</span></li>
     <li><span>${escapeHtml(t("teams.detail.strategies"))}</span><span>${stratN}</span></li>
     <li><span>${escapeHtml(t("teams.detail.tournaments_count"))}</span><span>${parts.length}</span></li>

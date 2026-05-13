@@ -83,6 +83,7 @@ async function load() {
   if (viewerUid === matchData.team_b_id) {
     [matchData.team_a_id, matchData.team_b_id] = [matchData.team_b_id, matchData.team_a_id];
     [matchData.team_a_name, matchData.team_b_name] = [matchData.team_b_name, matchData.team_a_name];
+    [matchData.bot_a_name, matchData.bot_b_name] = [matchData.bot_b_name, matchData.bot_a_name];
     [matchData.score_a, matchData.score_b] = [matchData.score_b, matchData.score_a];
     [matchData.history_a, matchData.history_b] = [matchData.history_b, matchData.history_a];
     [teamA, teamB] = [teamB, teamA];
@@ -103,10 +104,10 @@ function render() {
 
   els.teamAName.textContent = labelFor(teamA, matchData.team_a_name);
   els.teamBName.textContent = labelFor(teamB, matchData.team_b_name);
-  els.teamASub.textContent = matchData.team_a_name || "";
-  els.teamBSub.textContent = matchData.team_b_name || "";
-  els.teamAAvatar.src = avatarUrl(matchData.team_a_name || matchData.team_a_id);
-  els.teamBAvatar.src = avatarUrl(matchData.team_b_name || matchData.team_b_id);
+  els.teamASub.textContent = matchData.bot_a_name || "";
+  els.teamBSub.textContent = matchData.bot_b_name || "";
+  els.teamAAvatar.src = avatarUrl(matchData.bot_a_name || matchData.team_a_id);
+  els.teamBAvatar.src = avatarUrl(matchData.bot_b_name || matchData.team_b_id);
   els.teamAScore.textContent = matchData.score_a ?? 0;
   els.teamBScore.textContent = matchData.score_b ?? 0;
 

@@ -41,13 +41,6 @@
               <div class="sidebar-link-desc" data-i18n="sidebar.strategies.desc">Create, edit and manage your strategies</div>
             </div>
           </a>
-          <a class="sidebar-link disabled">
-            <img src="imgs/training.png" alt="" class="sidebar-icon" />
-            <div class="sidebar-link-text">
-              <div class="sidebar-link-title" data-i18n="sidebar.training">Training</div>
-              <div class="sidebar-link-desc" data-i18n="sidebar.training.desc">Train and improve your bots</div>
-            </div>
-          </a>
         </div>
         <div class="sidebar-section">
           <a href="tournaments.html" class="sidebar-link" data-page="tournaments-list">
@@ -57,18 +50,11 @@
               <div class="sidebar-link-desc" data-i18n="sidebar.tournaments.desc">Compete against other strategies</div>
             </div>
           </a>
-          <a class="sidebar-link disabled">
+          <a href="rankings.html" class="sidebar-link" data-page="rankings">
             <img src="imgs/rankings.png" alt="" class="sidebar-icon" />
             <div class="sidebar-link-text">
               <div class="sidebar-link-title" data-i18n="sidebar.leaderboards">Rankings</div>
               <div class="sidebar-link-desc" data-i18n="sidebar.leaderboards.desc">Discover the best strategists</div>
-            </div>
-          </a>
-          <a class="sidebar-link disabled">
-            <img src="imgs/halloffame.png" alt="" class="sidebar-icon" />
-            <div class="sidebar-link-text">
-              <div class="sidebar-link-title" data-i18n="sidebar.hallOfFame">Hall of Fame</div>
-              <div class="sidebar-link-desc" data-i18n="sidebar.hallOfFame.desc">The legends of Axelrod</div>
             </div>
           </a>
         </div>
@@ -111,11 +97,6 @@
             <h1 id="welcome-greeting"></h1>
             <p data-i18n="welcome.subtitle">Ready to outwit the sharpest minds?</p>
           </div>
-          <aside class="welcome-season" id="welcome-season">
-            <span class="kicker" data-i18n="welcome.season.kicker">Active tournament</span>
-            <strong id="welcome-season-name"></strong>
-            <span class="meta" id="welcome-season-meta"></span>
-          </aside>
         </section>
 
         <section class="hero-banner">
@@ -125,6 +106,79 @@
             <a id="cta-launch" class="hero-cta" href="playground.html" data-i18n="hero.banner.cta">Launch playground →</a>
           </div>
           <img src="imgs/intro.png" alt="" class="hero-banner-image" />
+        </section>
+
+        <!-- Stats dashboard : 3 cards -->
+        <section class="team-dash" id="team-dash" hidden>
+
+          <!-- Card 1 : Mon profil -->
+          <div class="card team-dash-card team-dash-profile">
+            <h3 class="card-section-title small" data-i18n="team.dash.profile.title">My profile</h3>
+            <div class="team-dash-profile-body">
+              <div class="profile-stats">
+                <div class="profile-stat">
+                  <span class="profile-stat-label" data-i18n="team.dash.profile.score">Current score</span>
+                  <span class="profile-stat-big" id="profile-score">—</span>
+                  <span class="profile-stat-trend" id="profile-score-trend"></span>
+                </div>
+                <div class="profile-stat">
+                  <span class="profile-stat-label" data-i18n="team.dash.profile.rank">Ranking</span>
+                  <span class="profile-stat-rank" id="profile-rank">—</span>
+                </div>
+                <div class="profile-stat">
+                  <span class="profile-stat-label" data-i18n="team.dash.profile.winrate">Win rate</span>
+                  <span class="profile-stat-big" id="profile-winrate">—</span>
+                </div>
+              </div>
+              <div class="profile-radar-wrap"><canvas id="profile-radar"></canvas></div>
+            </div>
+          </div>
+
+          <!-- Card 2 : Stats rapides -->
+          <div class="card team-dash-card team-dash-quickstats">
+            <h3 class="card-section-title small" data-i18n="team.dash.quickstats.title">Quick stats</h3>
+            <ul class="quickstats-list">
+              <li>
+                <span class="quickstats-label" data-i18n="team.dash.quickstats.matches">Matches played</span>
+                <span class="quickstats-value" id="quickstats-matches">0</span>
+              </li>
+              <li>
+                <span class="quickstats-label" data-i18n="team.dash.quickstats.coop">Avg cooperation</span>
+                <span class="quickstats-value" id="quickstats-coop">—</span>
+              </li>
+              <li>
+                <span class="quickstats-label" data-i18n="team.dash.quickstats.avg_score">Avg score</span>
+                <span class="quickstats-value" id="quickstats-avg-score">—</span>
+              </li>
+            </ul>
+            <div class="quickstats-chart-wrap"><canvas id="quickstats-chart"></canvas></div>
+            <div class="quickstats-legend">
+              <span><span class="legend-dot" style="background:#5fe3d8"></span><span data-i18n="team.dash.quickstats.you">You</span></span>
+              <span><span class="legend-dot" style="background:#ff8a8a"></span><span data-i18n="team.dash.quickstats.meta">Meta</span></span>
+            </div>
+          </div>
+
+          <!-- Card 3 : Dernier tournoi -->
+          <div class="card team-dash-card team-dash-lasttournament">
+            <h3 class="card-section-title small" data-i18n="team.dash.lasttournament.title">Last tournament</h3>
+            <div id="lasttournament-empty" class="muted small" data-i18n="team.dash.lasttournament.empty">No completed tournament yet.</div>
+            <div id="lasttournament-content" hidden>
+              <div class="lastmatch-head">
+                <span class="lastmatch-vs" id="lasttournament-name">—</span>
+                <span class="lastmatch-time muted small" id="lasttournament-time">—</span>
+              </div>
+              <div class="lasttournament-rank">
+                <span class="lasttournament-rank-num" id="lasttournament-rank">—</span>
+                <span class="lasttournament-rank-of muted" id="lasttournament-rank-of">/ —</span>
+              </div>
+              <div class="lastmatch-meta">
+                <div><span class="quickstats-label" data-i18n="team.dash.lasttournament.score">Score</span><span class="quickstats-value" id="lasttournament-score">0</span></div>
+                <div><span class="quickstats-label" data-i18n="team.dash.lasttournament.matches">Matches</span><span class="quickstats-value" id="lasttournament-matches">0</span></div>
+              </div>
+              <a id="lasttournament-link" class="lastmatch-cta" href="#" data-i18n="team.dash.lasttournament.cta">See tournament</a>
+            </div>
+          </div>
+
         </section>
       </main>
 

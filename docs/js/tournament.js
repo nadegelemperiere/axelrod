@@ -77,7 +77,6 @@ const els = {
   launchConfirmCheck: document.getElementById("launch-confirm-check"),
   launchConfirmBtn: document.getElementById("launch-confirm-btn"),
 
-  viewAnalysisLink: document.getElementById("view-analysis-link")
 };
 
 // Latest bot data per team for inspection modal: { teamId: botData }
@@ -97,9 +96,6 @@ if (!tournamentId) {
   window.location.href = "admin.html";
 }
 
-if (els.viewAnalysisLink) {
-  els.viewAnalysisLink.href = `tournament-view.html?t=${encodeURIComponent(tournamentId)}`;
-}
 
 let tournamentData = null;
 
@@ -223,8 +219,6 @@ function updateStatusUI() {
     els.runBtn.disabled = validCount < 2;
   }
 
-  // Analysis link only when launched
-  if (els.viewAnalysisLink) els.viewAnalysisLink.hidden = status === "open_submission";
 }
 
 // ---------- Available teams (for add modal dropdown) ----------
@@ -519,6 +513,8 @@ els.launchConfirmBtn.addEventListener("click", async () => {
     renderSettings();
     updateStatusUI();
     showMsg(els.launchMsg, true, t("tournament.launch.success"));
+    // Chain straight into the run — admin shouldn't have to click again.
+    await doRunMatches();
   } catch (err) {
     console.error(err);
     closeModal(els.launchModal);
@@ -529,9 +525,16 @@ els.launchConfirmBtn.addEventListener("click", async () => {
 });
 
 // ---------- Run matches ----------
+// Resume / retry button — confirms first, then runs.
 els.runBtn.addEventListener("click", async () => {
-  els.runMsg.hidden = true;
   if (!confirm(t("tournament.run.confirm"))) return;
+  await doRunMatches();
+});
+
+// The actual runner. Called either from the resume button or chained right
+// after a successful Launch (so the admin doesn't need to click twice).
+async function doRunMatches() {
+  els.runMsg.hidden = true;
   els.runBtn.disabled = true;
   els.runProgress.hidden = false;
   els.runProgressBar.style.width = "0%";
@@ -541,7 +544,12 @@ els.runBtn.addEventListener("click", async () => {
 
     const participants = teamsData
       .filter((tm) => tm.botValidationStatus === "ok")
-      .map((tm) => ({ id: tm.id, name: latestBotByTeam[tm.id]?.name || "?", code: latestBotByTeam[tm.id]?.code || "" }));
+      .map((tm) => ({
+        id: tm.id,
+        team_name: tm.display_name || tm.id,
+        bot_name: latestBotByTeam[tm.id]?.name || "?",
+        code: latestBotByTeam[tm.id]?.code || ""
+      }));
     if (participants.length < 2) throw new Error(t("tournament.run.need_two"));
 
     const pairs = [];
@@ -561,7 +569,7 @@ els.runBtn.addEventListener("click", async () => {
 
     for (let i = 0; i < pairs.length; i++) {
       const [a, b] = pairs[i];
-      setRunStage(t("tournament.run.match", { i: i + 1, n: pairs.length, a: a.name, b: b.name }));
+      setRunStage(t("tournament.run.match", { i: i + 1, n: pairs.length, a: a.team_name, b: b.team_name }));
       els.runProgressBar.style.width = `${Math.round((i / pairs.length) * 100)}%`;
       await new Promise((r) => setTimeout(r, 0));
 
@@ -608,7 +616,7 @@ els.runBtn.addEventListener("click", async () => {
     showMsg(els.runMsg, false, t("tournament.run.error", { msg: err.message || err }));
     els.runBtn.disabled = false;
   }
-});
+}
 
 function setRunStage(text) { els.runProgressLabel.textContent = text; }
 
@@ -636,7 +644,9 @@ async function writeMatch(a, b, r, nbTurns, noise) {
   const [first, second] = [a.id, b.id].sort();
   const matchId = `${first}__${second}`;
   await setDoc(doc(db, "tournaments", tournamentId, "matches", matchId), {
-    team_a_id: a.id, team_b_id: b.id, team_a_name: a.name, team_b_name: b.name,
+    team_a_id: a.id, team_b_id: b.id,
+    team_a_name: a.team_name, team_b_name: b.team_name,
+    bot_a_name: a.bot_name, bot_b_name: b.bot_name,
     score_a: r.score_a ?? 0, score_b: r.score_b ?? 0,
     history_a: r.history_a ?? "", history_b: r.history_b ?? "",
     nb_turns: nbTurns, noise_level: noise,

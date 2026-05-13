@@ -75,6 +75,15 @@ let activeStrategyTab = "code";
 const tournamentNamesCache = new Map();
 
 const REF_BOTS = ["always_cooperate", "always_defect", "tit_for_tat", "grudger", "random"];
+// Fixed seeds per opponent so the benchmark is reproducible : identical
+// strategies always get identical scores even against the random bot.
+const BENCHMARK_SEEDS = {
+  always_cooperate: 1001,
+  always_defect: 1002,
+  tit_for_tat: 1003,
+  grudger: 1004,
+  random: 1005
+};
 
 // ---------- Boot ----------
 loadTeamContext({
@@ -496,7 +505,7 @@ els.btnRunBenchmarks.addEventListener("click", async () => {
     const t_ = context.tournament || { nb_turns: 30, noise_level: 0 };
     const results = {};
     for (const opp of REF_BOTS) {
-      const r = pythonRunTest(s.code, opp, t_.nb_turns, 0, null);
+      const r = pythonRunTest(s.code, opp, t_.nb_turns, 0, BENCHMARK_SEEDS[opp] ?? 0);
       if (r.ok) {
         results[opp] = {
           score_a: r.score_a,
@@ -535,7 +544,11 @@ els.btnRunBenchmarks.addEventListener("click", async () => {
     showMsg(els.detailMsg, false, t("submit.error", { msg: err.message || err }));
   } finally {
     els.btnRunBenchmarks.disabled = false;
-    els.btnRunBenchmarks.textContent = t("strategies.profile.run");
+    // Restore label according to current strategy state.
+    const cur = strategies.find((x) => x.id === selectedId);
+    els.btnRunBenchmarks.textContent = cur?.benchmark_profile
+      ? t("strategies.profile.rerun")
+      : t("strategies.profile.run");
     els.loadingBanner.hidden = true;
   }
 });
@@ -580,6 +593,10 @@ function computeProfileFromResults(results) {
 
 // ---------- Profile radar ----------
 function renderProfileFromStrategy(s) {
+  // Button label : "Run" if no benchmark yet, "Re-run" if there's already one.
+  els.btnRunBenchmarks.textContent = s.benchmark_profile
+    ? t("strategies.profile.rerun")
+    : t("strategies.profile.run");
   if (!s.benchmark_profile) {
     els.profileEmpty.hidden = false;
     els.profileContent.hidden = true;
