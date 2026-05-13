@@ -3278,7 +3278,9 @@ body[data-page="admin-tournaments"]:not(.dense) .content-header { margin-bottom:
   align-items: center;      /* center podium image vertically */
   justify-content: center;
 }
-.hero-podium-card .podium-image-wrap { max-width: 100%; }
+/* Now that the podium image has no team overlays, it doesn't need to be
+   huge — cap it to half the card width, centered. */
+.hero-podium-card .podium-image-wrap { width: 50%; max-width: 220px; }
 
 .podium-extras {
   list-style: none;
@@ -3421,32 +3423,28 @@ body[data-page="admin-tournaments"]:not(.dense) .content-header { margin-bottom:
   }
 }
 
-/* Admin view : drop the focused-team card and the behavioral radar.
-   Restructure the whole dashboard as one grid with explicit areas so
-   there are no empty cells. `display: contents` flattens the row
-   wrappers (.hero-row, .mid-row, .bottom-row) into the main grid. */
+/* Admin view : drop the focused-team card, the behavioral radar AND the
+   matchup matrix. Restructure as one grid with explicit areas — podium and
+   outcomes on top, matches list above the selected-match preview. */
 .admin-view .hero-team-card,
-.admin-view .hero-radar-card { display: none; }
+.admin-view .hero-radar-card,
+.admin-view .mid-matrix-card { display: none; }
 .admin-view#main {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-areas:
     "podium  outcomes"
-    "matrix  matrix"
-    "matches preview";
+    "matches matches"
+    "preview preview";
   gap: 1rem;
 }
 .admin-view .hero-row,
 .admin-view .mid-row,
 .admin-view .bottom-row { display: contents; }
-.admin-view .hero-podium-card  { grid-area: podium; }
-.admin-view .mid-donut-card    { grid-area: outcomes; }
-.admin-view .mid-matrix-card   { grid-area: matrix; }
+.admin-view .hero-podium-card    { grid-area: podium; min-width: 0; }
+.admin-view .mid-donut-card      { grid-area: outcomes; min-width: 0; }
 .admin-view .bottom-matches-card { grid-area: matches; min-width: 0; }
 .admin-view .bottom-preview-card { grid-area: preview; min-width: 0; }
-.admin-view .mid-matrix-card,
-.admin-view .mid-donut-card,
-.admin-view .hero-podium-card { min-width: 0; }
 
 @media (max-width: 1100px) {
   .admin-view#main {
@@ -3454,7 +3452,6 @@ body[data-page="admin-tournaments"]:not(.dense) .content-header { margin-bottom:
     grid-template-areas:
       "podium"
       "outcomes"
-      "matrix"
       "matches"
       "preview";
   }

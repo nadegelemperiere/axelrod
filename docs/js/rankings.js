@@ -3,7 +3,7 @@
 // Reuses the admin teams layout (stat tiles, filter bar, cards/rows grid,
 // side detail panel) but in read-only mode : no edit, no delete, no create.
 
-import { onAuth } from "./auth.js";
+import { onAuth, isUserAdmin } from "./auth.js";
 import { initSidebar } from "./sidebar.js";
 import { t } from "./i18n.js";
 import { db } from "./firebase-config.js";
@@ -57,9 +57,18 @@ let selectedTeamId = null;
 let viewerUid = null;
 let viewMode = localStorage.getItem("axelrod.rankings.view") || "cards";
 let sortState = JSON.parse(localStorage.getItem("axelrod.rankings.sort") || '{"col":"points","dir":"desc"}');
+// Migrate any leftover state from the ELO era so the points column ranks
+// properly instead of degenerating into alphabetical order.
+if (sortState.col === "elo") {
+  sortState = { col: "points", dir: "desc" };
+  localStorage.setItem("axelrod.rankings.sort", JSON.stringify(sortState));
+}
 
 onAuth(async (user) => {
   if (!user) { window.location.href = "index.html"; return; }
+  // Rankings is a team-side page : admins are sent back to their dashboard.
+  const admin = await isUserAdmin(user.uid);
+  if (admin) { window.location.href = "admin.html"; return; }
   viewerUid = user.uid;
   els.main.hidden = false;
   await refresh();

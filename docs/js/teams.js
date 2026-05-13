@@ -72,6 +72,10 @@ let editingTeamId = null;
 let viewMode = localStorage.getItem("axelrod.teams.view") || "cards"; // "cards" | "rows"
 // Sort state only meaningful in "rows" mode. Persists in localStorage.
 let sortState = JSON.parse(localStorage.getItem("axelrod.teams.sort") || '{"col":"team","dir":"asc"}');
+if (sortState.col === "elo") {
+  sortState = { col: "points", dir: "desc" };
+  localStorage.setItem("axelrod.teams.sort", JSON.stringify(sortState));
+}
 
 onAuth(async (user) => {
   if (!user) { window.location.href = "index.html"; return; }

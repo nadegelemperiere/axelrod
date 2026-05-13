@@ -542,27 +542,31 @@ async function doRunMatches() {
     setRunStage(t("tournament.run.loading_pyodide"));
     await ensurePyodide();
 
-    const participants = teamsData
-      .filter((tm) => tm.botValidationStatus === "ok")
-      .map((tm) => ({
-        id: tm.id,
-        team_name: tm.display_name || tm.id,
-        bot_name: latestBotByTeam[tm.id]?.name || "?",
-        code: latestBotByTeam[tm.id]?.code || ""
-      }));
-    if (participants.length < 2) throw new Error(t("tournament.run.need_two"));
+    // Every registered team participates — those without a valid bot will
+    // get synthetic 0-0 matches written to the DB instead of a real Pyodide
+    // run. That way the leaderboard, matches list and stats all treat them
+    // uniformly downstream.
+    const allRegistered = teamsData.map((tm) => ({
+      id: tm.id,
+      team_name: tm.display_name || tm.id,
+      bot_name: latestBotByTeam[tm.id]?.name || "—",
+      code: latestBotByTeam[tm.id]?.code || "",
+      hasValidBot: tm.botValidationStatus === "ok"
+    }));
+    const validCount = allRegistered.filter((p) => p.hasValidBot).length;
+    if (validCount < 2) throw new Error(t("tournament.run.need_two"));
 
     const pairs = [];
-    for (let i = 0; i < participants.length; i++) {
-      for (let j = i + 1; j < participants.length; j++) {
-        pairs.push([participants[i], participants[j]]);
+    for (let i = 0; i < allRegistered.length; i++) {
+      for (let j = i + 1; j < allRegistered.length; j++) {
+        pairs.push([allRegistered[i], allRegistered[j]]);
       }
     }
     const nbTurns = tournamentData.nb_turns || 30;
     const noise = tournamentData.noise_level || 0;
 
     const totals = {}, wins = {}, ties = {}, losses = {}, coopSum = {}, matchCount = {};
-    for (const p of participants) {
+    for (const p of allRegistered) {
       totals[p.id] = 0; wins[p.id] = 0; ties[p.id] = 0; losses[p.id] = 0;
       coopSum[p.id] = 0; matchCount[p.id] = 0;
     }
@@ -573,11 +577,23 @@ async function doRunMatches() {
       els.runProgressBar.style.width = `${Math.round((i / pairs.length) * 100)}%`;
       await new Promise((r) => setTimeout(r, 0));
 
-      const seed = hashSeed(`${a.id}__${b.id}__${tournamentId}`);
-      const r = pythonRunMatch(a.code, b.code, nbTurns, noise, seed);
-      if (!r.ok) {
-        await writeMatch(a, b, { score_a: 0, score_b: 0, history_a: "", history_b: "", error: r.error }, nbTurns, noise);
-        continue;
+      let r;
+      if (!a.hasValidBot || !b.hasValidBot) {
+        // Synthetic forfeit : both sides get 0 points. Written to the DB
+        // like any other match so downstream stats (counts, ties, history)
+        // all flow through the same code path.
+        let forfeit = null;
+        if (!a.hasValidBot && !b.hasValidBot) forfeit = "both";
+        else if (!a.hasValidBot) forfeit = "a";
+        else forfeit = "b";
+        r = { ok: true, score_a: 0, score_b: 0, history_a: "", history_b: "", forfeit };
+      } else {
+        const seed = hashSeed(`${a.id}__${b.id}__${tournamentId}`);
+        r = pythonRunMatch(a.code, b.code, nbTurns, noise, seed);
+        if (!r.ok) {
+          await writeMatch(a, b, { score_a: 0, score_b: 0, history_a: "", history_b: "", error: r.error }, nbTurns, noise);
+          continue;
+        }
       }
       totals[a.id] += r.score_a; totals[b.id] += r.score_b;
       matchCount[a.id]++; matchCount[b.id]++;
@@ -590,7 +606,7 @@ async function doRunMatches() {
     }
 
     const coop = {}, avg_score = {};
-    for (const p of participants) {
+    for (const p of allRegistered) {
       coop[p.id] = matchCount[p.id] > 0 ? coopSum[p.id] / matchCount[p.id] : 0;
       avg_score[p.id] = matchCount[p.id] > 0 ? totals[p.id] / matchCount[p.id] : 0;
     }

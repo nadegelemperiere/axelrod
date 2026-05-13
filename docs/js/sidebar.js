@@ -54,6 +54,11 @@ export function initSidebar(activePage) {
     document.querySelectorAll(".sidebar-section.admin-only").forEach((el) => {
       el.hidden = !cachedIsAdmin;
     });
+    // Symmetric : team-only sections are hidden for admins (so they only
+    // see their admin nav when visiting shared pages like tournament-view).
+    document.querySelectorAll(".sidebar-section.team-only").forEach((el) => {
+      el.hidden = cachedIsAdmin;
+    });
   });
 
   document.addEventListener("langchange", refreshRoleLabel);
