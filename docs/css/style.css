@@ -2362,6 +2362,37 @@ body[data-page="playground"] .content-header {
   cursor: pointer;
 }
 
+.opponents-picker-list .picker-section-header {
+  list-style: none;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim, #7d96a0);
+  padding: 0.55rem 0.25rem 0.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: 0.2rem;
+}
+
+.opponents-picker-list .picker-section-header:first-child {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.opponent-item.opponent-strategy .opp-avatar {
+  border: 1px solid #5fe3d8;
+  box-shadow: 0 0 0 1px rgba(95, 227, 216, 0.18);
+  border-radius: 50%;
+}
+
+.opponent-item.opponent-strategy .opp-name::after {
+  content: "✦";
+  margin-left: 0.4rem;
+  color: #5fe3d8;
+  font-size: 0.7em;
+}
+
 .tournament-select {
   font-size: 0.78rem;
   padding: 0.3rem 0.55rem;
@@ -2540,6 +2571,12 @@ body[data-page="admin-tournaments"]:not(.dense) .content-header { margin-bottom:
   flex-direction: column;
   gap: 1.25rem;
 }
+
+/* Role-based visibility on shared pages (tournament.html, tournament-view,
+   match-view). The classes are set by sidebar.js and tournament.js based
+   on whether the viewer is an admin. */
+body.is-admin .team-only,
+body.is-team  .admin-only { display: none !important; }
 
 .tab-bar .tab-btn { padding: 0.7rem 1.1rem; }
 
@@ -3421,6 +3458,19 @@ body[data-page="admin-tournaments"]:not(.dense) .content-header { margin-bottom:
       "podium"
       "preview";
   }
+}
+
+/* Pre-results state (open_submission tournament, no matches yet) : hide
+   every analytic card and keep only the registered-teams card, centered. */
+#main:not(.admin-view).pre-results .hero-team-card,
+#main:not(.admin-view).pre-results .hero-radar-card,
+#main:not(.admin-view).pre-results .mid-donut-card,
+#main:not(.admin-view).pre-results .bottom-matches-card,
+#main:not(.admin-view).pre-results .bottom-preview-card { display: none; }
+#main:not(.admin-view).pre-results:has(.hero-row) {
+  grid-template-columns: minmax(300px, 600px);
+  grid-template-areas: "podium";
+  justify-content: center;
 }
 
 /* Admin view : drop the focused-team card, the behavioral radar AND the
@@ -5221,6 +5271,70 @@ body.dense .card-section-title.small { font-size: 0.65rem; }
 }
 
 /* Tip bar (bottom of strategies page) */
+/* Playground console output — terminal-style box showing whatever the
+   student's strategy printed during the last run. */
+.console-card { margin-top: 1rem; }
+.console-output {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.78rem;
+  color: #b8efc8;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 280px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(95, 227, 216, 0.4) transparent;
+}
+.console-output::-webkit-scrollbar { width: 6px; }
+.console-output::-webkit-scrollbar-track { background: transparent; }
+.console-output::-webkit-scrollbar-thumb { background: rgba(95, 227, 216, 0.3); border-radius: 3px; }
+.console-output::-webkit-scrollbar-thumb:hover { background: rgba(95, 227, 216, 0.7); }
+
+/* Submission history (strategies page) — one row per registered tournament */
+.submission-history-card { margin-top: 1rem; }
+.submission-history {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.submission-history-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1.4fr auto;
+  gap: 0.85rem;
+  align-items: center;
+  padding: 0.55rem 0.85rem;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.submission-history-tournament {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.submission-history-name {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+.submission-history-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.strategy-bot-name {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.82rem;
+}
+
 .tip-bar {
   display: flex;
   align-items: center;

@@ -9,6 +9,31 @@ Runs inside Pyodide. Exposes:
 """
 
 import random
+import io
+import sys
+
+
+# Stdout capture so the playground can show whatever the student's strategy
+# prints during a match. Called from JS around each run_test invocation.
+_capture_buffer = None
+_saved_stdout = None
+
+
+def _capture_start():
+    global _capture_buffer, _saved_stdout
+    _capture_buffer = io.StringIO()
+    _saved_stdout = sys.stdout
+    sys.stdout = _capture_buffer
+
+
+def _capture_end():
+    global _capture_buffer, _saved_stdout
+    if _saved_stdout is not None:
+        sys.stdout = _saved_stdout
+    captured = _capture_buffer.getvalue() if _capture_buffer else ""
+    _capture_buffer = None
+    _saved_stdout = None
+    return captured
 
 
 PAYOFF = {
@@ -301,6 +326,28 @@ def run_test(code, opponent_name, nb_turns=30, noise_level=0.0, seed=None):
         noise_level=noise_level,
     )
     result['opponent'] = opponent_name
+    return result
+
+
+def run_test_two_codes(code_a, code_b, nb_turns=30, noise_level=0.0, seed=None):
+    """Playground variant: plays two user-defined strategies against each other.
+
+    Returns the same shape as run_test (with `opponent` set to 'strategy'). If
+    either code fails validation, returns {ok: False, error: ...} — the picker
+    already filters out invalid strategies, so this is mostly defensive.
+    """
+    if seed is not None:
+        random.seed(seed)
+
+    va = validate_bot_code(code_a)
+    if not va['ok']:
+        return {'ok': False, 'error': f"Your code: {va['message']}"}
+    vb = validate_bot_code(code_b)
+    if not vb['ok']:
+        return {'ok': False, 'error': f"Opponent strategy: {vb['message']}"}
+
+    result = run_match(va['play'], vb['play'], nb_turns=nb_turns, noise_level=noise_level)
+    result['opponent'] = 'strategy'
     return result
 
 

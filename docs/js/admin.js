@@ -1,6 +1,6 @@
 import { onAuth, isUserAdmin } from "./auth.js";
 import { initSidebar } from "./sidebar.js";
-import { t } from "./i18n.js";
+import { t, tournamentStatusLabel } from "./i18n.js";
 import { db } from "./firebase-config.js";
 import {
   collection,
@@ -124,7 +124,7 @@ function renderList() {
     const badgeClass = status === "running"
       ? "live"
       : status === "completed" ? "ok" : "warn";
-    const statusLabel = t(`admin.status.${status}`);
+    const statusLabel = tournamentStatusLabel(status);
     const teamCount = teamCountByTid[tt.id] || 0;
     const teamCountLabel = teamCount === 1
       ? t("tournaments.list.teams_count.one", { n: teamCount })

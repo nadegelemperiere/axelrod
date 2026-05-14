@@ -48,7 +48,11 @@ const translations = {
     "playground.opponents.add": "+ Add",
     "playground.opponents.remove": "Remove",
     "playground.opponents.picker.title": "Add an opponent",
-    "playground.opponents.picker.empty": "All reference bots already added.",
+    "playground.opponents.picker.empty": "Nothing left to add.",
+    "playground.opponents.picker.section.bots": "Reference bots",
+    "playground.opponents.picker.section.mine": "My strategies",
+    "playground.opponents.picker.mine.empty": "No saved strategy yet — save one from the playground to test it here.",
+    "playground.opponents.strategy.missing": "This strategy is no longer available. Reload the page.",
     "playground.editor.tab": "my_strategy.py",
     "playground.editor.saved": "Saved",
     "playground.editor.unsaved": "Unsaved",
@@ -72,6 +76,7 @@ const translations = {
     "playground.tabs.details": "Details",
     "playground.tabs.analysis": "Analysis",
     "playground.analysis.title": "Quick analysis",
+    "playground.console.title": "Console output",
     "playground.analysis.placeholder": "Run a match to get a quick read on your strategy.",
     "playground.analysis.profile.cooperative": "Highly cooperative strategy. You build trust well — but watch out for aggressive bots that may exploit your willingness to cooperate.",
     "playground.analysis.profile.aggressive": "Aggressive strategy. You exploit cooperators effectively, but reactive bots will punish you back and your average score may suffer.",
@@ -111,12 +116,12 @@ const translations = {
     "playground.save.success": "Strategy \"{name}\" saved.",
     "playground.save.update.success": "Strategy \"{name}\" updated.",
     "playground.submit.modal.title": "Submit to the tournament",
-    "playground.submit.modal.warning": "This is irreversible. Once submitted, this code becomes your team's official entry for the tournament — you cannot take it back.",
+    "playground.submit.modal.warning": "Submit this strategy to the tournament.",
     "playground.submit.modal.tournament": "Tournament",
     "playground.submit.modal.name": "Submission name",
     "playground.submit.modal.confirm.checkbox": "I understand this is final.",
     "playground.submit.modal.cancel": "Cancel",
-    "playground.submit.modal.confirm": "Submit definitively",
+    "playground.submit.modal.confirm": "Submit",
     "playground.submit.modal.checking": "Checking tournament status…",
     "playground.submit.modal.no_tournament": "Your team isn't assigned to any tournament. Ask your teacher to register your team first.",
     "playground.submit.modal.already_submitted": "You've already submitted to \"{name}\". Submissions are final — only one per team per tournament.",
@@ -244,6 +249,14 @@ const translations = {
     "submit.error": "Send error: {msg}",
     "submit.badge.valid": "valid",
     "submit.badge.error": "error",
+    "strategies.submissions.title": "Submission history",
+    "strategies.submissions.empty": "You haven't submitted to a tournament yet.",
+    "strategies.submissions.no_submission": "no submission",
+    "strategies.submissions.no_submission_hint": "Not submitted yet",
+    "strategies.submissions.active": "Active",
+    "strategies.submissions.replaced": "Replaced",
+    "strategies.submissions.played": "Played",
+    "playground.submit.modal.note": "Submitting again later will replace this submission and unlock the previous strategy.",
     "submit.pending": "sending…",
 
     "admin.create.title": "Create a tournament",
@@ -633,7 +646,11 @@ const translations = {
     "playground.opponents.add": "+ Ajouter",
     "playground.opponents.remove": "Retirer",
     "playground.opponents.picker.title": "Ajouter un adversaire",
-    "playground.opponents.picker.empty": "Tous les bots de référence sont déjà ajoutés.",
+    "playground.opponents.picker.empty": "Rien à ajouter.",
+    "playground.opponents.picker.section.bots": "Bots de référence",
+    "playground.opponents.picker.section.mine": "Mes stratégies",
+    "playground.opponents.picker.mine.empty": "Pas encore de stratégie sauvegardée — enregistre-en une pour la tester ici.",
+    "playground.opponents.strategy.missing": "Cette stratégie n'est plus disponible. Recharge la page.",
     "playground.editor.tab": "ma_strategie.py",
     "playground.editor.saved": "Sauvegardé",
     "playground.editor.unsaved": "Non sauvegardé",
@@ -657,6 +674,7 @@ const translations = {
     "playground.tabs.details": "Détails",
     "playground.tabs.analysis": "Analyse",
     "playground.analysis.title": "Analyse rapide",
+    "playground.console.title": "Sortie console",
     "playground.analysis.placeholder": "Lance un match pour obtenir une analyse rapide de ta stratégie.",
     "playground.analysis.profile.cooperative": "Stratégie très coopérative. Tu construis la confiance — mais attention aux bots agressifs qui peuvent exploiter ta bienveillance.",
     "playground.analysis.profile.aggressive": "Stratégie agressive. Tu exploites bien les coopérateurs, mais les bots réactifs te puniront et ta moyenne risque d'en souffrir.",
@@ -696,12 +714,12 @@ const translations = {
     "playground.save.success": "Stratégie « {name} » sauvegardée.",
     "playground.save.update.success": "Stratégie « {name} » mise à jour.",
     "playground.submit.modal.title": "Soumettre au tournoi",
-    "playground.submit.modal.warning": "C'est définitif. Une fois soumis, ce code devient l'entrée officielle de ton équipe au tournoi — impossible de revenir en arrière.",
+    "playground.submit.modal.warning": "Soumettre cette stratégie au tournoi.",
     "playground.submit.modal.tournament": "Tournoi",
     "playground.submit.modal.name": "Nom de la soumission",
     "playground.submit.modal.confirm.checkbox": "Je comprends que c'est définitif.",
     "playground.submit.modal.cancel": "Annuler",
-    "playground.submit.modal.confirm": "Soumettre définitivement",
+    "playground.submit.modal.confirm": "Soumettre",
     "playground.submit.modal.checking": "Vérification du tournoi…",
     "playground.submit.modal.no_tournament": "Ton équipe n'est inscrite à aucun tournoi. Demande à la prof d'inscrire ton équipe d'abord.",
     "playground.submit.modal.already_submitted": "Tu as déjà soumis pour « {name} ». Les soumissions sont définitives — une seule par équipe par tournoi.",
@@ -829,6 +847,14 @@ const translations = {
     "submit.error": "Erreur d'envoi: {msg}",
     "submit.badge.valid": "validé",
     "submit.badge.error": "erreur",
+    "strategies.submissions.title": "Historique des soumissions",
+    "strategies.submissions.empty": "Vous n'avez encore rien soumis à un tournoi.",
+    "strategies.submissions.no_submission": "non soumis",
+    "strategies.submissions.no_submission_hint": "Pas encore soumis",
+    "strategies.submissions.active": "Active",
+    "strategies.submissions.replaced": "Remplacée",
+    "strategies.submissions.played": "Jouée",
+    "playground.submit.modal.note": "Soumettre à nouveau plus tard remplacera cette soumission et déverrouillera la stratégie précédente.",
     "submit.pending": "envoi en cours…",
 
     "admin.create.title": "Créer un tournoi",
@@ -1189,6 +1215,16 @@ export function setLang(lang) {
   document.documentElement.lang = lang;
   applyTranslations();
   document.dispatchEvent(new CustomEvent("langchange", { detail: { lang } }));
+}
+
+// Resolves a tournament status value (potentially manually-tweaked in the
+// Firestore console with a typo, hyphen, casing, etc.) to a known i18n key
+// for the admin status label.
+const KNOWN_TOURNAMENT_STATUS = new Set(["open_submission", "running", "completed"]);
+export function tournamentStatusLabel(rawStatus) {
+  const normalized = String(rawStatus || "open_submission").replace(/-/g, "_").toLowerCase();
+  const key = KNOWN_TOURNAMENT_STATUS.has(normalized) ? normalized : "open_submission";
+  return t(`admin.status.${key}`);
 }
 
 export function t(key, params = {}) {

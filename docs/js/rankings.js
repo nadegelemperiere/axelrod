@@ -5,7 +5,7 @@
 
 import { onAuth, isUserAdmin } from "./auth.js";
 import { initSidebar } from "./sidebar.js";
-import { t } from "./i18n.js";
+import { t, tournamentStatusLabel } from "./i18n.js";
 import { db } from "./firebase-config.js";
 import {
   doc,
@@ -451,7 +451,7 @@ function renderDetail(teamId) {
     els.detailTournaments.innerHTML = `<li class="muted small">${escapeHtml(t("teams.detail.no_tournament"))}</li>`;
   } else {
     els.detailTournaments.innerHTML = parts.map((p) => {
-      const statusLabel = t(`admin.status.${p.tournamentStatus || "open_submission"}`);
+      const statusLabel = tournamentStatusLabel(p.tournamentStatus);
       return `
         <li>
           <a href="tournament-view.html?t=${encodeURIComponent(p.tournamentId)}" class="detail-tournament-link">

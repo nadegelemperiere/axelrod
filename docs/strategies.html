@@ -192,12 +192,13 @@
 
         </section>
 
-        <div class="tip-bar">
-          <div class="tip-bar-content">
-            <span class="tip-bar-icon">💡</span>
-            <span data-i18n="strategies.tip">Tip: A good agent knows how to cooperate, defend itself, and forgive at the right moment.</span>
+        <section class="card submission-history-card">
+          <div class="pg-card-head">
+            <h3 class="pg-card-title" data-i18n="strategies.submissions.title">Submission history</h3>
           </div>
-        </div>
+          <ul id="submission-history" class="submission-history"></ul>
+          <p id="submission-history-empty" class="muted small" hidden data-i18n="strategies.submissions.empty">You haven't submitted to a tournament yet.</p>
+        </section>
 
         <p id="loading-banner" class="loading-banner" hidden>
           <span class="dot"></span>
@@ -220,9 +221,7 @@
           </div>
 
           <div id="submit-form-content" hidden>
-            <div class="modal-warning" data-i18n="playground.submit.modal.warning">
-              This is irreversible.
-            </div>
+            <p class="muted small" data-i18n="playground.submit.modal.note">Submitting again later will replace this submission and unlock the previous strategy.</p>
             <label>
               <span data-i18n="playground.submit.modal.tournament">Tournament</span>
               <select id="submit-tournament" required></select>
@@ -231,15 +230,11 @@
               <span data-i18n="playground.submit.modal.name">Submission name</span>
               <input type="text" id="submit-name" required />
             </label>
-            <label class="modal-checkbox">
-              <input type="checkbox" id="submit-confirm-check" />
-              <span data-i18n="playground.submit.modal.confirm.checkbox">I understand this is final.</span>
-            </label>
           </div>
 
           <div class="modal-actions">
             <button class="btn-cancel" type="button" data-modal-close data-i18n="playground.submit.modal.cancel">Cancel</button>
-            <button class="btn-submit-final" type="button" id="submit-confirm-btn" disabled data-i18n="playground.submit.modal.confirm">Submit definitively</button>
+            <button class="btn-submit-final" type="button" id="submit-confirm-btn" data-i18n="playground.submit.modal.confirm">Submit</button>
           </div>
         </div>
       </div>

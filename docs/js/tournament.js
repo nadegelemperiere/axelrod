@@ -1,6 +1,6 @@
 import { onAuth, isUserAdmin } from "./auth.js";
 import { initSidebar } from "./sidebar.js";
-import { t } from "./i18n.js";
+import { t, tournamentStatusLabel } from "./i18n.js";
 import { db } from "./firebase-config.js";
 import {
   doc,
@@ -22,7 +22,6 @@ const els = {
   tPhase: document.getElementById("t-phase"),
   tStatus: document.getElementById("t-status"),
   tMeta: document.getElementById("t-meta"),
-  tId: document.getElementById("t-id"),
   tHeroCount: document.getElementById("t-hero-count"),
   tHeroDonutArc: document.getElementById("t-hero-donut-arc"),
 
@@ -98,25 +97,26 @@ if (!tournamentId) {
 
 
 let tournamentData = null;
+let isAdmin = false;
 
 onAuth(async (user) => {
   if (!user) {
     window.location.href = "index.html";
     return;
   }
-  const admin = await isUserAdmin(user.uid);
-  if (!admin) {
-    els.accessDenied.hidden = false;
-    return;
-  }
+  isAdmin = await isUserAdmin(user.uid);
+  // Apply role classes so CSS can hide admin-only / team-only controls.
+  document.body.classList.toggle("is-admin", isAdmin);
+  document.body.classList.toggle("is-team", !isAdmin);
+
   const tSnap = await getDoc(doc(db, "tournaments", tournamentId));
   if (!tSnap.exists()) {
     alert(t("teams.alert.not.found"));
-    window.location.href = "admin.html";
+    window.location.href = isAdmin ? "admin.html" : "tournaments.html";
     return;
   }
   tournamentData = tSnap.data();
-  // Completed tournaments → redirect to analysis.
+  // Completed tournaments → redirect to analysis (works for both roles).
   if (tournamentData.status === "completed") {
     window.location.href = `tournament-view.html?t=${encodeURIComponent(tournamentId)}`;
     return;
@@ -135,13 +135,12 @@ function renderHero() {
   els.tTitle.textContent = tournamentData.name;
   els.tPhase.textContent = t("tournament.hero.phase", { n: tournamentData.phase || 1 });
   const status = tournamentData.status || "open_submission";
-  els.tStatus.textContent = t(`admin.status.${status}`).toUpperCase();
+  els.tStatus.textContent = tournamentStatusLabel(status).toUpperCase();
   els.tStatus.className = "badge t-hero-status " + statusBadgeClass(status);
   els.tMeta.textContent = t("tournament.hero.params", {
     turns: tournamentData.nb_turns,
     noise: (tournamentData.noise_level * 100).toFixed(0)
   });
-  els.tId.textContent = t("tournament.hero.id", { id: tournamentId });
 }
 
 function statusBadgeClass(s) {
@@ -370,7 +369,7 @@ function renderTeamsList() {
         <span>${escapeHtml(submRel)}</span>
         <span class="muted small">${escapeHtml(submStr)}</span>
       </div>
-      <div class="t-team-actions">
+      <div class="t-team-actions admin-only">
         ${tm.hasBot ? `<button type="button" class="t-team-iconbtn" data-view="${escapeHtml(tm.id)}" data-name="${escapeHtml(tm.display_name)}" title="${t("tournament.bot.view")}">👁</button>` : ""}
         <button type="button" class="t-team-iconbtn danger" data-del="${escapeHtml(tm.id)}" title="${t("tournament.remove")}">🗑</button>
       </div>

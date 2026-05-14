@@ -1,5 +1,5 @@
 import { initSidebar } from "./sidebar.js";
-import { t, getLang } from "./i18n.js";
+import { t, getLang, tournamentStatusLabel } from "./i18n.js";
 import { loadTeamContext } from "./team-context.js";
 import { db } from "./firebase-config.js";
 import {
@@ -51,12 +51,13 @@ const els = {
   submitFormContent: document.getElementById("submit-form-content"),
   submitTournament: document.getElementById("submit-tournament"),
   submitName: document.getElementById("submit-name"),
-  submitConfirmCheck: document.getElementById("submit-confirm-check"),
   submitConfirmBtn: document.getElementById("submit-confirm-btn"),
   renameModal: document.getElementById("rename-modal"),
   renameName: document.getElementById("rename-name"),
   renameConfirmBtn: document.getElementById("rename-confirm-btn"),
-  loadingBanner: document.getElementById("loading-banner")
+  loadingBanner: document.getElementById("loading-banner"),
+  submissionHistory: document.getElementById("submission-history"),
+  submissionHistoryEmpty: document.getElementById("submission-history-empty")
 };
 
 let context = null;
@@ -74,15 +75,35 @@ let activeStrategyTab = "code";
 // names stay fresh too.
 const tournamentNamesCache = new Map();
 
-const REF_BOTS = ["always_cooperate", "always_defect", "tit_for_tat", "grudger", "random"];
+// Bots used to compute the behavioral radar. We test against a rich set of
+// strategies so the radar gives a meaningful read on the student's bot —
+// against pure cooperators only you can't tell if a student's bot is
+// forgiving or just naïve. The names of the sophisticated bots are NOT
+// shown to students (see VISIBLE_BOTS below) so they aren't influenced in
+// how they design their strategy.
+const REF_BOTS = [
+  "always_cooperate",
+  "always_defect",
+  "random",
+  "tit_for_tat",
+  "grudger",
+  "pavlov",
+  "generous_tit_for_tat"
+];
+// Quick tests panel shows ONLY the simple bots that students already know
+// about (they're the playground opponents). The other benchmark bots stay
+// hidden — they only influence the radar profile.
+const VISIBLE_BOTS = ["always_cooperate", "always_defect", "random"];
 // Fixed seeds per opponent so the benchmark is reproducible : identical
-// strategies always get identical scores even against the random bot.
+// strategies always get identical scores, even against random bots.
 const BENCHMARK_SEEDS = {
   always_cooperate: 1001,
   always_defect: 1002,
+  random: 1005,
   tit_for_tat: 1003,
   grudger: 1004,
-  random: 1005
+  pavlov: 1006,
+  generous_tit_for_tat: 1007
 };
 
 // ---------- Boot ----------
@@ -113,6 +134,87 @@ async function refreshStrategies() {
   // exists and unlock those whose tournament is gone.
   await Promise.all(strategies.map((s) => verifyStrategyLock(s)));
   renderLibrary();
+  await refreshSubmissionHistory();
+}
+
+let submissionsCache = [];
+
+// Reads the team's submission log from Firestore (append-only) then renders.
+async function refreshSubmissionHistory() {
+  if (!els.submissionHistory) return;
+  try {
+    const subsRef = collection(db, "teams", context.uid, "submissions");
+    const sSnap = await getDocs(query(subsRef, orderBy("submitted_at", "desc")));
+    submissionsCache = [];
+    sSnap.forEach((d) => submissionsCache.push({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.error("Failed to load submission history", err);
+    submissionsCache = [];
+  }
+  renderSubmissionHistory();
+}
+
+// Submission history : one row per submission event (append-only). Each row
+// shows tournament, strategy + bot name, date, and a status badge :
+//   - "Replaced" if a more recent submission exists for the same tournament
+//   - "Played"   if the tournament is now completed (submission was used)
+//   - "Active"   otherwise (this is the current submission, tournament still open)
+function renderSubmissionHistory() {
+  if (!els.submissionHistory) return;
+  els.submissionHistory.innerHTML = "";
+  if (submissionsCache.length === 0) {
+    els.submissionHistoryEmpty.hidden = false;
+    return;
+  }
+  els.submissionHistoryEmpty.hidden = true;
+
+  // For each tournament, find the most recent submission id → that's the
+  // "active" one (others are "replaced").
+  const latestByTournament = {};
+  for (const sub of submissionsCache) {
+    const tid = sub.tournament_id;
+    const ts = sub.submitted_at?.toMillis?.() ?? 0;
+    if (!latestByTournament[tid] || ts > latestByTournament[tid].ts) {
+      latestByTournament[tid] = { id: sub.id, ts };
+    }
+  }
+
+  // Tournament status lookup so we can say "Played" for completed tournaments.
+  const tournamentStatus = {};
+  for (const tm of context?.tournaments || []) tournamentStatus[tm.id] = tm.status;
+
+  const locale = document.documentElement.lang === "fr" ? "fr-FR" : "en-GB";
+  for (const sub of submissionsCache) {
+    const tsStr = sub.submitted_at?.toDate?.()?.toLocaleString(locale) || "—";
+    const isLatest = latestByTournament[sub.tournament_id]?.id === sub.id;
+    const tStatus = tournamentStatus[sub.tournament_id];
+
+    let stateLabel, stateClass;
+    if (sub.validation_status === "error") {
+      stateLabel = t("submit.badge.error"); stateClass = "ko";
+    } else if (!isLatest) {
+      stateLabel = t("strategies.submissions.replaced"); stateClass = "";
+    } else if (tStatus === "completed") {
+      stateLabel = t("strategies.submissions.played"); stateClass = "ok";
+    } else {
+      stateLabel = t("strategies.submissions.active"); stateClass = "ok";
+    }
+
+    const li = document.createElement("li");
+    li.className = "submission-history-row";
+    li.innerHTML = `
+      <div class="submission-history-tournament">
+        <span class="submission-history-name">${escapeHtml(sub.tournament_name || sub.tournament_id)}</span>
+        <span class="muted small">${escapeHtml(tournamentStatusLabel(tStatus))}</span>
+      </div>
+      <div class="submission-history-body">
+        <span class="strategy-bot-name">${escapeHtml(sub.bot_name || "—")}</span>
+        <span class="muted small">${escapeHtml(tsStr)}</span>
+      </div>
+      <span class="badge ${stateClass}">${escapeHtml(stateLabel)}</span>
+    `;
+    els.submissionHistory.appendChild(li);
+  }
 }
 
 /**
@@ -387,6 +489,8 @@ els.btnSubmit.addEventListener("click", async () => {
   els.submitChecking.hidden = false;
   els.submitBlocked.hidden = true;
   els.submitFormContent.hidden = true;
+  // Button disabled while we're loading the eligible tournament list; re-enabled
+  // once the form is shown.
   els.submitConfirmBtn.disabled = true;
   openModal(els.submitModal);
 
@@ -419,19 +523,18 @@ els.btnSubmit.addEventListener("click", async () => {
     .map((tm) => `<option value="${tm.id.replace(/"/g, "&quot;")}">${escapeHtml(tm.name)}</option>`)
     .join("");
   els.submitName.value = s.name || "";
-  els.submitConfirmCheck.checked = false;
+  els.submitConfirmBtn.disabled = false;
 });
 
 async function getEligibleTournaments() {
   if (!context.tournaments || context.tournaments.length === 0) return [];
+  // Every tournament still accepting submissions is eligible — including
+  // ones where the team has already submitted. Submitting a new strategy
+  // there will simply replace the previous one (and unlock the old strategy).
   return context.tournaments
-    .filter((tm) => !tm.participation?.bot_code)
+    .filter((tm) => (tm.status || "open_submission") === "open_submission")
     .map((tm) => ({ id: tm.id, name: tm.name }));
 }
-
-els.submitConfirmCheck.addEventListener("change", () => {
-  els.submitConfirmBtn.disabled = !els.submitConfirmCheck.checked;
-});
 
 els.submitConfirmBtn.addEventListener("click", async () => {
   if (!selectedId) return;
@@ -446,25 +549,27 @@ els.submitConfirmBtn.addEventListener("click", async () => {
   }
   els.submitConfirmBtn.disabled = true;
   try {
-    // Double-check race condition
-    const guardSnap = await getDoc(
-      doc(db, "tournaments", targetTournamentId, "teams", context.uid)
-    );
-    if (guardSnap.exists() && guardSnap.data().bot_code) {
-      closeModal(els.submitModal);
-      showMsg(els.detailMsg, false, t("playground.submit.modal.already_submitted", { name: targetTournamentName }));
-      return;
-    }
-
-    // Validate via Pyodide (light check before submitting to /bots).
+    // Validate via Pyodide (light check before submitting).
     await ensurePyodide();
     const validation = pyodide ? pythonValidate(s.code) : { ok: true, message: "" };
 
+    // If a DIFFERENT strategy was previously submitted to this tournament,
+    // unlock it (clear last_submitted_at + last_submitted_tournament_id) so
+    // the team can edit it again.
+    const prev = strategies.find((x) => x.last_submitted_tournament_id === targetTournamentId && x.id !== s.id);
+    if (prev) {
+      await updateDoc(doc(strategiesCollection(), prev.id), {
+        last_submitted_at: null,
+        last_submitted_tournament_id: null
+      });
+    }
+
+    const botName = els.submitName.value.trim() || s.name || "Untitled";
     await setDoc(
       doc(db, "tournaments", targetTournamentId, "teams", context.uid),
       {
         bot_code: s.code,
-        bot_name: els.submitName.value.trim() || s.name || "Untitled",
+        bot_name: botName,
         bot_submitted_at: serverTimestamp(),
         bot_validation_status: validation.ok ? "ok" : "error",
         bot_validation_message: validation.message,
@@ -478,6 +583,21 @@ els.submitConfirmBtn.addEventListener("click", async () => {
       last_submitted_tournament_id: targetTournamentId
     });
 
+    // Append a snapshot to the team's submission history (append-only log).
+    // The previous "active" submission for this tournament becomes "replaced"
+    // implicitly because there's a more recent entry — no need to mutate it.
+    await addDoc(collection(db, "teams", context.uid, "submissions"), {
+      tournament_id: targetTournamentId,
+      tournament_name: targetTournamentName,
+      strategy_id: s.id,
+      strategy_name: s.name || "Untitled",
+      bot_name: botName,
+      bot_code: s.code,
+      validation_status: validation.ok ? "ok" : "error",
+      validation_message: validation.message,
+      submitted_at: serverTimestamp()
+    });
+
     closeModal(els.submitModal);
     showMsg(els.detailMsg, true, t("playground.submit.success", { name: els.submitName.value.trim() }));
     await refreshStrategies();
@@ -486,7 +606,7 @@ els.submitConfirmBtn.addEventListener("click", async () => {
     console.error(err);
     showMsg(els.detailMsg, false, t("submit.error", { msg: err.message || err }));
   } finally {
-    els.submitConfirmBtn.disabled = !els.submitConfirmCheck.checked;
+    els.submitConfirmBtn.disabled = false;
   }
 });
 
@@ -516,16 +636,20 @@ els.btnRunBenchmarks.addEventListener("click", async () => {
       }
     }
 
-    // Compute averages
-    const totalScore = Object.values(results).reduce((acc, r) => acc + r.score_a, 0);
-    const avgScore = Math.round(totalScore / Math.max(1, Object.keys(results).length));
-    const totalCoop = Object.values(results).reduce((acc, r) => {
+    // The numbers shown in the library card (avg score, coop rate) are computed
+    // ONLY against the bots students can see (VISIBLE_BOTS) so the values are
+    // verifiable in the playground. The radar profile below still uses every
+    // benchmark result for richness.
+    const visibleResults = VISIBLE_BOTS.map((opp) => results[opp]).filter(Boolean);
+    const totalScore = visibleResults.reduce((acc, r) => acc + r.score_a, 0);
+    const avgScore = Math.round(totalScore / Math.max(1, visibleResults.length));
+    const totalCoop = visibleResults.reduce((acc, r) => {
       const coop = (r.history_a.match(/C/g) || []).length;
       return acc + coop / r.history_a.length;
     }, 0);
-    const avgCoop = totalCoop / Math.max(1, Object.keys(results).length);
+    const avgCoop = totalCoop / Math.max(1, visibleResults.length);
 
-    // Profile metrics: aggregate analyze over each match
+    // Profile metrics: aggregate analyze over EVERY match (incl. hidden bots)
     const profile = computeProfileFromResults(results);
 
     await updateDoc(doc(strategiesCollection(), selectedId), {
@@ -686,7 +810,9 @@ function renderTestsFromStrategy(s) {
     return;
   }
   els.testsEmpty.hidden = true;
-  for (const opp of REF_BOTS) {
+  // Only the simple bots students know about are listed. Sophisticated bots
+  // are part of the benchmark but their scores stay private.
+  for (const opp of VISIBLE_BOTS) {
     if (!r[opp]) continue;
     const m = r[opp];
     const li = document.createElement("li");

@@ -72,6 +72,15 @@ service cloud.firestore {
         allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
         allow create, update, delete: if isSignedIn() && request.auth.uid == uid;
       }
+
+      // Historique des soumissions de l'équipe — append-only. Chaque submit
+      // y ajoute un snapshot (tournoi, stratégie, code, statut). Jamais
+      // supprimé pour préserver la trace pédagogique.
+      match /submissions/{submissionId} {
+        allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+        allow create: if isSignedIn() && request.auth.uid == uid;
+        allow update, delete: if false;
+      }
     }
 
     match /tournaments/{tournamentId} {

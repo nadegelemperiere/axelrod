@@ -8,6 +8,7 @@ import {
   setDoc,
   updateDoc,
   collection,
+  getDocs,
   addDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
@@ -15,48 +16,25 @@ import {
 initSidebar("playground");
 
 // ---------- Starter code ----------
+// We deliberately ship NO sample implementation : this is a Python class,
+// students must write the play() function themselves. Just a single comment
+// shows where the code goes.
 const STARTER_CODES = {
-  en: `"""
-Your bot for the Axelrod Tournament.
-Write ONLY the play() function below.
-'C' = Cooperate, 'D' = Defect.
-"""
-
-import random
-
-
-def play(my_history, opp_history):
-    if not opp_history:
-        return 'C'
-    return opp_history[-1]
-`,
-  fr: `"""
-Ton bot pour le Tournoi Axelrod.
-Écris UNIQUEMENT la fonction play() ci-dessous.
-'C' = Coopérer, 'D' = Trahir.
-"""
-
-import random
-
-
-def play(my_history, opp_history):
-    if not opp_history:
-        return 'C'
-    return opp_history[-1]
-`
+  en: `# Write your Python code here.\n`,
+  fr: `# Écris ton code Python ici.\n`
 };
 
-const ALL_OPPONENTS = [
-  "tit_for_tat",
-  "always_cooperate",
-  "always_defect",
-  "grudger",
-  "pavlov",
-  "generous_tit_for_tat",
-  "random"
-];
+// Reference bots available to students. Opponents (whether bots or saved
+// strategies) are normalized as `{type: "bot"|"strategy", id: string}` —
+// see normalizeOpponent / opponentKey below. Legacy string entries from
+// localStorage are migrated on read.
+const REFERENCE_BOT_IDS = ["always_cooperate", "always_defect", "random"];
+const DEFAULT_OPPONENTS = REFERENCE_BOT_IDS.map((id) => ({ type: "bot", id }));
 
-const DEFAULT_OPPONENTS = ["always_cooperate", "always_defect", "tit_for_tat", "random", "grudger"];
+// Resolved at boot from /teams/{uid}/strategies: id -> {name, code}. Only
+// strategies that validate successfully are kept (invalid ones would just
+// forfeit the match, which is confusing in a learning context).
+let teamStrategies = new Map();
 
 const els = {
   loadingBanner: document.getElementById("loading-banner"),
@@ -77,6 +55,8 @@ const els = {
   runBtn: document.getElementById("run-btn"),
   arenaError: document.getElementById("arena-error"),
   matchSection: document.getElementById("match-section"),
+  consoleCard: document.getElementById("console-card"),
+  consoleOutput: document.getElementById("console-output"),
   matchOppName: document.getElementById("match-opp-name"),
   matchAvatarOpp: document.getElementById("match-avatar-opp"),
   matchAvatarYou: document.getElementById("match-avatar-you"),
@@ -97,7 +77,6 @@ const els = {
   saveBtn: document.getElementById("save-btn"),
   submitBtn: document.getElementById("submit-btn"),
   submitMsg: document.getElementById("submit-msg"),
-  submissions: document.getElementById("submissions"),
   saveModal: document.getElementById("save-modal"),
   saveName: document.getElementById("save-name"),
   saveDescription: document.getElementById("save-description"),
@@ -109,7 +88,6 @@ const els = {
   submitFormContent: document.getElementById("submit-form-content"),
   submitTournament: document.getElementById("submit-tournament"),
   submitName: document.getElementById("submit-name"),
-  submitConfirmCheck: document.getElementById("submit-confirm-check"),
   submitConfirmBtn: document.getElementById("submit-confirm-btn")
 };
 
@@ -130,10 +108,18 @@ let opponents = [];
 let selectedOpponent = null;
 let activeTab = "graph";
 
+// Results cache keyed by opponentKey(opp). Each entry is
+// {result, captured, codeVersion}. We bump codeVersion on every edit so that
+// clicking back to an already-tested opponent re-runs if the code has changed,
+// but is instant otherwise (avoids reshuffling random/noisy outcomes).
+const resultsCache = new Map();
+let codeVersion = 0;
+
 // ---------- Boot ----------
 loadTeamContext({
   onLoaded: async (ctx) => {
     context = ctx;
+    await loadTeamStrategies();
     opponents = loadOpponents();
     selectedOpponent = opponents[0] || DEFAULT_OPPONENTS[0];
     setMatchAvatarYou(ctx.team.display_name);
@@ -171,7 +157,6 @@ loadTeamContext({
     }
 
     await initEditor(initialCode);
-    await refreshSubmissions();
     els.main.hidden = false;
     if (activeStrategyName && !activeStrategyLocked) {
       showValidationMsg(els.validationMsg,
@@ -201,18 +186,57 @@ function opponentsKey() {
   return `axelrod-opponents-${context.uid}`;
 }
 
+// Normalize a stored entry into `{type, id}`. Legacy entries are bare strings
+// referring to reference bot ids — wrap them. Drop anything we can no longer
+// resolve (deleted strategies, unknown bots).
+function normalizeOpponent(raw) {
+  if (typeof raw === "string") {
+    return REFERENCE_BOT_IDS.includes(raw) ? { type: "bot", id: raw } : null;
+  }
+  if (!raw || typeof raw !== "object") return null;
+  if (raw.type === "bot") {
+    return REFERENCE_BOT_IDS.includes(raw.id) ? { type: "bot", id: raw.id } : null;
+  }
+  if (raw.type === "strategy") {
+    return teamStrategies.has(raw.id) ? { type: "strategy", id: raw.id } : null;
+  }
+  return null;
+}
+
+function opponentKey(opp) {
+  return `${opp.type}:${opp.id}`;
+}
+
 function loadOpponents() {
   const stored = localStorage.getItem(opponentsKey());
   if (!stored) return [...DEFAULT_OPPONENTS];
   try {
     const arr = JSON.parse(stored);
-    if (Array.isArray(arr) && arr.every((o) => ALL_OPPONENTS.includes(o))) return arr;
+    if (Array.isArray(arr)) {
+      const normalized = arr.map(normalizeOpponent).filter(Boolean);
+      if (normalized.length > 0) return normalized;
+    }
   } catch {}
   return [...DEFAULT_OPPONENTS];
 }
 
 function saveOpponents() {
   localStorage.setItem(opponentsKey(), JSON.stringify(opponents));
+}
+
+async function loadTeamStrategies() {
+  teamStrategies = new Map();
+  try {
+    const snap = await getDocs(collection(db, "teams", context.uid, "strategies"));
+    snap.forEach((d) => {
+      const data = d.data();
+      if (data.validation_status === "ok" && data.code) {
+        teamStrategies.set(d.id, { name: data.name || "(untitled)", code: data.code });
+      }
+    });
+  } catch (e) {
+    console.warn("Failed to load team strategies for opponents picker", e);
+  }
 }
 
 async function initEditor(initialCode) {
@@ -239,6 +263,7 @@ async function initEditor(initialCode) {
   setSaveState(true);
   editor.onDidChangeModelContent(() => {
     setSaveState(false);
+    codeVersion++;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       localStorage.setItem(storageKey(), editor.getValue());
@@ -253,10 +278,21 @@ function setSaveState(saved) {
 }
 
 // ---------- Pyodide ----------
+// Captures everything the student's strategy prints to stdout/stderr during
+// a match, so we can display it in the "Console output" card after the run.
+// IMPORTANT : we clear with `.length = 0` (mutate in place) — never reassign,
+// otherwise the closure inside pyodide.setStdout keeps writing to the orphan
+// array and the captured output silently disappears.
+const printBuffer = [];
+
 async function initPyodide() {
   try {
     const { loadPyodide } = await import("https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.mjs");
     pyodide = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" });
+    // Redirect Python stdout/stderr to our buffer (batched = one call per
+    // line, auto-flushed on newline).
+    pyodide.setStdout({ batched: (line) => printBuffer.push(line) });
+    pyodide.setStderr({ batched: (line) => printBuffer.push("[stderr] " + line) });
     const sandboxCode = await fetch("./sandbox.py").then((r) => r.text());
     pyodide.runPython(sandboxCode);
     els.loadingBanner.hidden = true;
@@ -300,6 +336,18 @@ function pythonRunTest(code, opponent, nbTurns, noise, seed) {
   return result;
 }
 
+function pythonRunTwoStrategies(codeA, codeB, nbTurns, noise, seed) {
+  pyodide.globals.set("_code_a", codeA);
+  pyodide.globals.set("_code_b", codeB);
+  pyodide.globals.set("_nb", nbTurns);
+  pyodide.globals.set("_noise", noise);
+  pyodide.globals.set("_seed", seed);
+  const proxy = pyodide.runPython("run_test_two_codes(_code_a, _code_b, _nb, _noise, _seed)");
+  const result = proxy.toJs({ dict_converter: Object.fromEntries });
+  proxy.destroy();
+  return result;
+}
+
 function pythonAnalyze(my_h, opp_h) {
   pyodide.globals.set("_my_h", my_h);
   pyodide.globals.set("_opp_h", opp_h);
@@ -319,26 +367,49 @@ function setMatchAvatarYou(seed) {
 }
 
 // ---------- Opponents list ----------
+function opponentLabel(opp) {
+  if (opp.type === "strategy") {
+    const s = teamStrategies.get(opp.id);
+    return s ? s.name : "(deleted)";
+  }
+  return opp.id.split("_").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+}
+
+function opponentAvatarSeed(opp) {
+  // Use a "team:" prefix on strategy avatars so they look distinct from
+  // reference bots even if the names happen to collide.
+  return opp.type === "strategy" ? `team:${opp.id}` : opp.id;
+}
+
 function renderOpponents() {
   els.opponentsList.innerHTML = "";
   for (const opp of opponents) {
     const li = document.createElement("li");
-    li.className = "opponent-item" + (opp === selectedOpponent ? " selected" : "");
-    li.dataset.opp = opp;
+    const isSelected = selectedOpponent && opponentKey(selectedOpponent) === opponentKey(opp);
+    li.className = "opponent-item" + (isSelected ? " selected" : "");
+    if (opp.type === "strategy") li.classList.add("opponent-strategy");
+    li.dataset.oppType = opp.type;
+    li.dataset.oppId = opp.id;
     li.innerHTML = `
-      <img class="opp-avatar" src="${avatarUrl(opp)}" alt="" />
-      <span class="opp-name">${formatOppName(opp)}</span>
+      <img class="opp-avatar" src="${avatarUrl(opponentAvatarSeed(opp))}" alt="" />
+      <span class="opp-name">${escapeHtml(opponentLabel(opp))}</span>
       <button class="opp-remove" type="button" data-i18n-title="playground.opponents.remove" aria-label="remove">×</button>
     `;
     li.addEventListener("click", (e) => {
       if (e.target.classList.contains("opp-remove")) return;
       selectedOpponent = opp;
       renderOpponents();
+      runMatchAgainst(opp);
     });
     li.querySelector(".opp-remove").addEventListener("click", (e) => {
       e.stopPropagation();
-      opponents = opponents.filter((o) => o !== opp);
-      if (selectedOpponent === opp) selectedOpponent = opponents[0] || null;
+      const removedKey = opponentKey(opp);
+      opponents = opponents.filter((o) => opponentKey(o) !== removedKey);
+      resultsCache.delete(removedKey);
+      if (selectedOpponent && opponentKey(selectedOpponent) === removedKey) {
+        selectedOpponent = opponents[0] || null;
+        if (selectedOpponent) runMatchAgainst(selectedOpponent);
+      }
       saveOpponents();
       renderOpponents();
     });
@@ -346,39 +417,69 @@ function renderOpponents() {
   }
 }
 
-function formatOppName(opp) {
-  return opp.split("_").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
-}
-
 els.addOppBtn.addEventListener("click", openPicker);
 
 function openPicker() {
   els.pickerList.innerHTML = "";
-  const remaining = ALL_OPPONENTS.filter((o) => !opponents.includes(o));
-  if (remaining.length === 0) {
+  const usedKeys = new Set(opponents.map(opponentKey));
+
+  const availableBots = REFERENCE_BOT_IDS
+    .map((id) => ({ type: "bot", id }))
+    .filter((o) => !usedKeys.has(opponentKey(o)));
+  const availableStrats = [...teamStrategies.keys()]
+    .map((id) => ({ type: "strategy", id }))
+    .filter((o) => !usedKeys.has(opponentKey(o)));
+
+  if (availableBots.length === 0 && availableStrats.length === 0) {
     const li = document.createElement("li");
     li.className = "opponent-item";
     li.innerHTML = `<span class="opp-name muted">${t("playground.opponents.picker.empty")}</span>`;
     els.pickerList.appendChild(li);
-  } else {
-    for (const opp of remaining) {
+    openModal(els.pickerModal);
+    return;
+  }
+
+  appendPickerSection(t("playground.opponents.picker.section.bots"), availableBots);
+  appendPickerSection(t("playground.opponents.picker.section.mine"), availableStrats,
+    t("playground.opponents.picker.mine.empty"));
+
+  openModal(els.pickerModal);
+}
+
+function appendPickerSection(title, items, emptyHint) {
+  const header = document.createElement("li");
+  header.className = "picker-section-header";
+  header.textContent = title;
+  els.pickerList.appendChild(header);
+
+  if (items.length === 0) {
+    if (emptyHint) {
       const li = document.createElement("li");
       li.className = "opponent-item";
-      li.innerHTML = `
-        <img class="opp-avatar" src="${avatarUrl(opp)}" alt="" />
-        <span class="opp-name">${formatOppName(opp)}</span>
-      `;
-      li.addEventListener("click", () => {
-        opponents.push(opp);
-        if (!selectedOpponent) selectedOpponent = opp;
-        saveOpponents();
-        renderOpponents();
-        closeModal(els.pickerModal);
-      });
+      li.innerHTML = `<span class="opp-name muted">${escapeHtml(emptyHint)}</span>`;
       els.pickerList.appendChild(li);
     }
+    return;
   }
-  openModal(els.pickerModal);
+
+  for (const opp of items) {
+    const li = document.createElement("li");
+    li.className = "opponent-item";
+    if (opp.type === "strategy") li.classList.add("opponent-strategy");
+    li.innerHTML = `
+      <img class="opp-avatar" src="${avatarUrl(opponentAvatarSeed(opp))}" alt="" />
+      <span class="opp-name">${escapeHtml(opponentLabel(opp))}</span>
+    `;
+    li.addEventListener("click", () => {
+      opponents.push(opp);
+      selectedOpponent = opp;
+      saveOpponents();
+      renderOpponents();
+      closeModal(els.pickerModal);
+      runMatchAgainst(opp);
+    });
+    els.pickerList.appendChild(li);
+  }
 }
 
 // ---------- Modals ----------
@@ -415,29 +516,79 @@ els.resetBtn.addEventListener("click", () => {
   editor.setValue(getStarterCode());
 });
 
-els.runBtn.addEventListener("click", () => {
+// Run a match against `opp`, or pull the result from cache if the code hasn't
+// changed since we last ran it. `force=true` skips the cache (used by the Run
+// button to let students re-roll random/noisy outcomes).
+function runMatchAgainst(opp, { force = false } = {}) {
   if (!pyodide) return;
-  if (!selectedOpponent) {
+  if (!opp) {
     els.arenaError.textContent = "No opponent selected.";
     els.arenaError.hidden = false;
     return;
   }
   els.arenaError.hidden = true;
+
+  const key = opponentKey(opp);
+  const cached = resultsCache.get(key);
+  if (!force && cached && cached.codeVersion === codeVersion) {
+    printBuffer.length = 0;
+    if (cached.captured) printBuffer.push(cached.captured);
+    renderConsoleOutput();
+    renderMatch(cached.result, opp);
+    return;
+  }
+
   const code = editor.getValue();
   const tournament = context.tournament || { nb_turns: 30, noise_level: 0 };
   const nbTurns = tournament.nb_turns;
   const noise = tournament.noise_level;
 
-  const result = pythonRunTest(code, selectedOpponent, nbTurns, noise, null);
+  pyodide.runPython("_capture_start()");
+  let result;
+  if (opp.type === "strategy") {
+    const strat = teamStrategies.get(opp.id);
+    if (!strat) {
+      pyodide.runPython("_capture_end()");
+      els.arenaError.textContent = t("playground.opponents.strategy.missing");
+      els.arenaError.hidden = false;
+      els.matchSection.hidden = true;
+      els.analysisSection.hidden = true;
+      return;
+    }
+    result = pythonRunTwoStrategies(code, strat.code, nbTurns, noise, null);
+  } else {
+    result = pythonRunTest(code, opp.id, nbTurns, noise, null);
+  }
+  const captured = pyodide.runPython("_capture_end()");
+  printBuffer.length = 0;
+  if (captured) printBuffer.push(captured);
+  renderConsoleOutput();
   if (!result.ok) {
+    // Don't cache failures — student will fix code and the version bump will
+    // invalidate anyway, but being explicit avoids stale error displays.
     els.arenaError.textContent = result.error;
     els.arenaError.hidden = false;
     els.matchSection.hidden = true;
     els.analysisSection.hidden = true;
     return;
   }
-  renderMatch(result, selectedOpponent);
+  resultsCache.set(key, { result, captured: captured || "", codeVersion });
+  renderMatch(result, opp);
+}
+
+els.runBtn.addEventListener("click", () => {
+  runMatchAgainst(selectedOpponent, { force: true });
 });
+
+function renderConsoleOutput() {
+  if (!els.consoleCard) return;
+  if (printBuffer.length === 0) {
+    els.consoleCard.hidden = true;
+    return;
+  }
+  els.consoleCard.hidden = false;
+  els.consoleOutput.textContent = printBuffer.join("\n");
+}
 
 function renderMatch(result, opponent) {
   lastResult = result;
@@ -448,8 +599,8 @@ function renderMatch(result, opponent) {
   void els.analysisSection.offsetHeight;
 
   // Fighters
-  els.matchOppName.textContent = formatOppName(opponent).toUpperCase();
-  els.matchAvatarOpp.src = avatarUrl(opponent);
+  els.matchOppName.textContent = opponentLabel(opponent).toUpperCase();
+  els.matchAvatarOpp.src = avatarUrl(opponentAvatarSeed(opponent));
 
   // Cells
   renderCells(result.history_b, els.historyB);
@@ -827,26 +978,22 @@ els.submitBtn.addEventListener("click", async () => {
     .map((tm) => `<option value="${escapeAttr(tm.id)}">${escapeHtml(tm.name)}</option>`)
     .join("");
   els.submitName.value = activeStrategyName || "";
-  els.submitConfirmCheck.checked = false;
+  els.submitConfirmBtn.disabled = false;
 });
 
-// Build the list of tournaments the team is registered to AND hasn't submitted to yet.
-// Uses the multi-tournament list loaded by team-context.js. Participation data
-// (including bot_code) is already loaded in tournament.participation.
+// Build the list of tournaments the team is registered to. Resubmitting is
+// allowed for any open tournament — the previously-submitted strategy will
+// be unlocked at submit time by the strategies.js flow.
 async function getEligibleTournaments() {
   if (!context.tournaments || context.tournaments.length === 0) return [];
   return context.tournaments
-    .filter((tm) => !tm.participation?.bot_code)
+    .filter((tm) => (tm.status || "open_submission") === "open_submission")
     .map((tm) => ({ id: tm.id, name: tm.name }));
 }
 
 function escapeAttr(s) {
   return String(s).replace(/"/g, "&quot;");
 }
-
-els.submitConfirmCheck.addEventListener("change", () => {
-  els.submitConfirmBtn.disabled = !els.submitConfirmCheck.checked;
-});
 
 els.submitConfirmBtn.addEventListener("click", async () => {
   if (!pyodide) return;
@@ -936,12 +1083,11 @@ els.submitConfirmBtn.addEventListener("click", async () => {
       { ok: validation.ok, message: validation.ok
         ? t("playground.submit.success", { name: submissionName })
         : t("submit.invalid") + " " + validation.message });
-    await refreshSubmissions();
   } catch (err) {
     console.error(err);
     showValidationMsg(els.submitMsg, { ok: false, message: t("submit.error", { msg: err.message || err }) });
   } finally {
-    els.submitConfirmBtn.disabled = !els.submitConfirmCheck.checked;
+    els.submitConfirmBtn.disabled = false;
   }
 });
 
@@ -967,42 +1113,6 @@ function showValidationMsg(el, result, prefix = "") {
   el.textContent = (prefix ? prefix + " " : "") + result.message;
 }
 
-async function refreshSubmissions() {
-  els.submissions.innerHTML = "";
-  if (!context.tournamentId) {
-    const li = document.createElement("li");
-    li.className = "empty";
-    li.textContent = t("submit.history.empty");
-    els.submissions.appendChild(li);
-    return;
-  }
-  const partSnap = await getDoc(
-    doc(db, "tournaments", context.tournamentId, "teams", context.uid)
-  );
-  if (!partSnap.exists() || !partSnap.data().bot_code) {
-    const li = document.createElement("li");
-    li.className = "empty";
-    li.textContent = t("submit.history.empty");
-    els.submissions.appendChild(li);
-    return;
-  }
-  const data = partSnap.data();
-  const localeForDates = document.documentElement.lang === "fr" ? "fr-FR" : "en-GB";
-  const ts = data.bot_submitted_at?.toDate?.() ?? null;
-  const tsStr = ts ? ts.toLocaleString(localeForDates) : t("submit.pending");
-  const badge = data.bot_validation_status === "ok" ? t("submit.badge.valid") : t("submit.badge.error");
-  const badgeClass = data.bot_validation_status === "ok" ? "badge ok" : "badge ko";
-  const li = document.createElement("li");
-  li.innerHTML = `
-    <div class="t-row">
-      <span class="${badgeClass}">${badge}</span>
-      <span class="meta">${escapeHtml(tsStr)}</span>
-      <span class="meta validation-detail">${escapeHtml(data.bot_validation_message || "")}</span>
-    </div>
-  `;
-  els.submissions.appendChild(li);
-}
-
 // ---------- Lang change ----------
 document.addEventListener("langchange", () => {
   setSaveState(!els.saveIndicator.classList.contains("unsaved"));
@@ -1010,7 +1120,6 @@ document.addEventListener("langchange", () => {
   if (lastResult && lastOpponent) {
     renderMatch(lastResult, lastOpponent);
   }
-  if (context) refreshSubmissions();
 });
 
 function escapeHtml(s) {

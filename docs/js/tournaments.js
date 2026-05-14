@@ -1,5 +1,5 @@
 import { initSidebar } from "./sidebar.js";
-import { t } from "./i18n.js";
+import { t, tournamentStatusLabel } from "./i18n.js";
 import { loadTeamContext } from "./team-context.js";
 import { db } from "./firebase-config.js";
 import {
@@ -62,7 +62,7 @@ async function refreshList() {
   for (const tournament of myTournaments) {
     const teamCount = teamsByTournament[tournament.id] || 0;
     const statusKey = tournament.status || "open_submission";
-    const statusLabel = t(`admin.status.${statusKey}`);
+    const statusLabel = tournamentStatusLabel(statusKey);
     const badgeClass = STATUS_BADGE[statusKey] || "";
     const teamCountLabel = teamCount === 1
       ? t("tournaments.list.teams_count.one", { n: teamCount })
@@ -74,7 +74,11 @@ async function refreshList() {
     const hue = hashHue(tournament.id);
 
     const a = document.createElement("a");
-    a.href = `tournament-view.html?t=${encodeURIComponent(tournament.id)}`;
+    // Completed tournaments → analysis dashboard. Open / running → the
+    // read-only overview (same page admin uses, with controls hidden).
+    a.href = (statusKey === "completed")
+      ? `tournament-view.html?t=${encodeURIComponent(tournament.id)}`
+      : `tournament.html?t=${encodeURIComponent(tournament.id)}`;
     a.className = "tournament-list-card";
     a.innerHTML = `
       <span class="hex-icon" style="--team-color: hsl(${hue} 75% 60%)">${hexIconSvg(hue)}</span>

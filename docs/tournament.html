@@ -25,6 +25,39 @@
       </div>
 
       <nav class="sidebar-nav">
+        <div class="sidebar-section team-only">
+          <p class="sidebar-section-label" data-i18n="sidebar.lab">Laboratoire</p>
+          <a href="playground.html" class="sidebar-link" data-page="playground">
+            <img src="imgs/playground.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.playground">Playground</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.playground.desc">Experiment and test your strategies</div>
+            </div>
+          </a>
+          <a href="strategies.html" class="sidebar-link" data-page="strategies">
+            <img src="imgs/strategies.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.strategies">My strategies</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.strategies.desc">Create, edit and manage your strategies</div>
+            </div>
+          </a>
+        </div>
+        <div class="sidebar-section team-only">
+          <a href="tournaments.html" class="sidebar-link active" data-page="tournaments-list">
+            <img src="imgs/tournament.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.tournaments">Tournaments</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.tournaments.desc">Compete against other strategies</div>
+            </div>
+          </a>
+          <a href="rankings.html" class="sidebar-link" data-page="rankings">
+            <img src="imgs/rankings.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.leaderboards">Rankings</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.leaderboards.desc">Discover the best strategists</div>
+            </div>
+          </a>
+        </div>
         <div class="sidebar-section admin-only" hidden>
           <p class="sidebar-section-label" data-i18n="sidebar.admin">Admin</p>
           <a href="admin.html" class="sidebar-link active" data-page="admin-tournaments">
@@ -82,7 +115,6 @@
               <span class="badge t-hero-status" id="t-status">—</span>
             </div>
             <p class="t-hero-params muted" id="t-meta">—</p>
-            <p class="t-hero-id muted small" id="t-id">—</p>
           </div>
 
           <div class="t-hero-mid" title="">
@@ -96,7 +128,7 @@
             </div>
           </div>
 
-          <div class="t-hero-right">
+          <div class="t-hero-right admin-only">
             <button type="button" id="launch-btn" class="t-hero-launch" data-i18n="tournament.launch.button">🚀 Launch tournament</button>
             <button type="button" id="run-matches-btn" class="t-hero-launch" hidden data-i18n="tournament.run.button">Run matches</button>
             <p id="launch-msg" class="validation-msg" hidden></p>
@@ -168,7 +200,7 @@
                   <span class="filter-search-icon">🔎</span>
                   <input type="text" id="t-teams-search" data-i18n-placeholder="tournament.teams.search" placeholder="Search teams…" />
                 </label>
-                <button type="button" id="open-add-btn" class="primary-cta small-cta">+ <span data-i18n="tournament.add.submit">Add team</span></button>
+                <button type="button" id="open-add-btn" class="primary-cta small-cta admin-only">+ <span data-i18n="tournament.add.submit">Add team</span></button>
               </div>
             </div>
 

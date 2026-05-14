@@ -1,5 +1,5 @@
 import { initSidebar } from "./sidebar.js";
-import { t } from "./i18n.js";
+import { t, tournamentStatusLabel } from "./i18n.js";
 import { loadTeamContext } from "./team-context.js";
 import { db } from "./firebase-config.js";
 import {
@@ -29,6 +29,7 @@ const els = {
   heroNarrative: document.getElementById("hero-narrative"),
   podium: document.getElementById("podium"),
   podiumExtras: document.getElementById("podium-extras"),
+  podiumTitle: document.getElementById("podium-title"),
   heroRadar: document.getElementById("hero-radar"),
 
   // Mid row
@@ -98,6 +99,11 @@ loadTeamContext({
     els.main.hidden = false;
     els.main.classList.toggle("admin-view", !!ctx.isAdmin);
     await Promise.all([loadTournament(), loadTeams(), loadLeaderboard(), loadMatches()]);
+    // pre-results state : no leaderboard yet → collapse the layout to just
+    // the registered-teams card. Otherwise the team sees a dashboard of
+    // empty placeholders (radar, donut, matches, preview).
+    const hasLeaderboard = !!(leaderboard?.scores && Object.keys(leaderboard.scores).length > 0);
+    els.main.classList.toggle("pre-results", !hasLeaderboard);
     computeProfiles();
     pickFocusedTeam();
     renderHeader();
@@ -269,7 +275,7 @@ function renderHeader() {
     phase: tournamentData.phase,
     turns: tournamentData.nb_turns,
     noise: (tournamentData.noise_level * 100).toFixed(0),
-    status: t(`admin.status.${statusKey}`)
+    status: tournamentStatusLabel(statusKey)
   });
   // Append the relevant date (completed → completed_at, otherwise launched_at
   // or created_at) so the team can locate the tournament in time without us
@@ -336,7 +342,30 @@ function narrativeFor(teamId) {
 function renderPodium() {
   els.podium.innerHTML = "";
   if (els.podiumExtras) els.podiumExtras.innerHTML = "";
-  if (!leaderboard?.scores) return;
+
+  // No leaderboard yet → show the list of registered teams instead of the
+  // podium, with the section retitled "Registered teams".
+  if (!leaderboard?.scores || Object.keys(leaderboard.scores).length === 0) {
+    if (els.podiumTitle) els.podiumTitle.textContent = t("tournament.view.teams.title");
+    if (teams.length === 0 || !els.podiumExtras) return;
+    const sorted = [...teams].sort((a, b) => (a.display_name || "").localeCompare(b.display_name || ""));
+    const myTeamId = context?.isAdmin ? null : context?.uid;
+    sorted.forEach((tm) => {
+      const isMe = myTeamId && tm.id === myTeamId;
+      const li = document.createElement("li");
+      li.className = "podium-extra" + (isMe ? " you" : "");
+      li.innerHTML = `
+        <span class="podium-extra-rank">${tm.emoji ? escapeHtml(tm.emoji) : "▣"}</span>
+        <span class="podium-extra-name">${escapeHtml(tm.display_name)}</span>
+        <span class="podium-extra-score muted small">${tm.bot_name ? "✓" : "—"}</span>
+      `;
+      els.podiumExtras.appendChild(li);
+    });
+    return;
+  }
+
+  // Leaderboard available → original podium + ranking list rendering.
+  if (els.podiumTitle) els.podiumTitle.textContent = t("tournament.view.hero.podium");
 
   const sortedAll = Object.entries(leaderboard.scores)
     .map(([id, score]) => ({ id, score, team: teams.find((tm) => tm.id === id) }))

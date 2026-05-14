@@ -51,6 +51,10 @@ export function initSidebar(activePage) {
     refreshRoleLabel();
     if (avatarEl) avatarEl.textContent = (localPart[0] || "?").toUpperCase();
 
+    // Body classes so CSS can target role-based UI globally (admin-only /
+    // team-only elements outside the sidebar use these).
+    document.body.classList.toggle("is-admin", cachedIsAdmin);
+    document.body.classList.toggle("is-team", !cachedIsAdmin);
     document.querySelectorAll(".sidebar-section.admin-only").forEach((el) => {
       el.hidden = !cachedIsAdmin;
     });
