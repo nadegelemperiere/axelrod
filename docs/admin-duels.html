@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tournaments · Axelrod</title>
+  <title>Duels · Admin · Axelrod</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body data-page="admin-tournaments">
+<body data-page="admin-duels">
 
   <div class="app">
 
@@ -70,10 +70,9 @@
 
       <div class="content-header content-header-row">
         <div>
-          <h1 data-i18n="admin.title">Tournaments</h1>
-          <p class="lede" data-i18n="admin.subtitle">Create and run class tournaments.</p>
+          <h1 data-i18n="admin.duels.title">Duel activity</h1>
+          <p class="lede" data-i18n="admin.duels.subtitle">All practice 1v1 matches between teams.</p>
         </div>
-        <button type="button" id="open-create-btn" class="primary-cta" data-i18n="admin.create.open">Create a tournament</button>
       </div>
 
       <p id="access-denied" class="access-denied" hidden data-i18n="access.denied">
@@ -81,51 +80,36 @@
       </p>
 
       <main id="main" hidden>
-        <div class="tab-bar tournament-tabs">
-          <button type="button" class="tab-btn active" data-filter="all" data-i18n="admin.tab.all">All</button>
-          <button type="button" class="tab-btn" data-filter="active" data-i18n="admin.tab.active">In progress</button>
-          <button type="button" class="tab-btn" data-filter="completed" data-i18n="admin.tab.completed">Completed</button>
+        <div class="tab-bar duels-tabs">
+          <button type="button" class="tab-btn active" data-filter="all" data-i18n="admin.duels.tab.all">All</button>
+          <button type="button" class="tab-btn" data-filter="pending" data-i18n="admin.duels.tab.pending">Pending</button>
+          <button type="button" class="tab-btn" data-filter="completed" data-i18n="admin.duels.tab.completed">Completed</button>
+          <button type="button" class="tab-btn" data-filter="declined" data-i18n="admin.duels.tab.declined">Declined / Errors</button>
         </div>
 
-        <ul id="t-list" class="tournament-admin-list"></ul>
+        <div class="admin-duels-stats" id="admin-duels-stats"></div>
+
+        <table class="admin-duels-table">
+          <thead>
+            <tr>
+              <th data-i18n="admin.duels.col.date">Date</th>
+              <th data-i18n="admin.duels.col.inviter">Inviter</th>
+              <th data-i18n="admin.duels.col.invitee">Invitee</th>
+              <th data-i18n="admin.duels.col.strategies">Strategies</th>
+              <th data-i18n="admin.duels.col.params">Params</th>
+              <th data-i18n="admin.duels.col.status">Status</th>
+              <th data-i18n="admin.duels.col.result">Result</th>
+            </tr>
+          </thead>
+          <tbody id="admin-duels-body"></tbody>
+        </table>
+        <p id="admin-duels-empty" class="muted small" hidden data-i18n="admin.duels.empty">No duels yet.</p>
       </main>
-
-      <!-- Create tournament modal -->
-      <div id="create-modal" class="modal-backdrop" hidden>
-        <div class="modal" role="dialog" aria-modal="true" style="max-width: 560px;">
-          <div class="modal-head">
-            <h2 data-i18n="admin.create.title">Create a tournament</h2>
-            <button class="modal-close" type="button" data-modal-close>×</button>
-          </div>
-          <div class="modal-section">
-            <form id="create-form">
-              <label>
-                <span data-i18n="admin.create.name">Tournament name</span>
-                <input type="text" id="t-name" required maxlength="80" data-i18n-placeholder="admin.create.name.placeholder" placeholder="e.g. Axelrod Junior — June 2026">
-              </label>
-              <div class="row">
-                <label>
-                  <span data-i18n="admin.create.turns">Rounds per match</span>
-                  <input type="number" id="t-turns" value="30" min="5" max="200" required>
-                </label>
-                <label>
-                  <span data-i18n="admin.create.noise">Noise level (0 to 0.5)</span>
-                  <input type="number" id="t-noise" value="0" step="0.05" min="0" max="0.5" required>
-                </label>
-              </div>
-              <div style="display: flex; gap: 0.6rem; justify-content: flex-end; margin-top: 1rem;">
-                <button type="button" data-modal-close data-i18n="modal.cancel">Cancel</button>
-                <button type="submit" data-i18n="admin.create.submit">Create</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
 
     </div>
   </div>
 
   <script type="module" src="js/i18n.js"></script>
-  <script type="module" src="js/admin.js"></script>
+  <script type="module" src="js/admin-duels.js"></script>
 </body>
 </html>

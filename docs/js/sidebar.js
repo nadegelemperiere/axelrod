@@ -1,10 +1,78 @@
-import { auth } from "./firebase-config.js";
+import { auth, db } from "./firebase-config.js";
 import { logout, isUserAdmin } from "./auth.js";
 import { t } from "./i18n.js";
 import { playDoorOpen } from "./sound.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot
+} from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
 let cachedIsAdmin = null;
+
+// Global duel notifications. Each team page subscribes once to all duels
+// involving this user, and displays a count badge on the "1v1 Duels"
+// sidebar link for anything that needs the user's action right now
+// (pending invitations to accept, or accepted duels where their strategy
+// isn't picked yet). Live updates via onSnapshot — no manual refresh.
+const duelDocsForBadge = new Map();
+let duelUnsubs = [];
+let badgeUid = null;
+
+function isDuelActionable(d) {
+  if (d.status === "pending" && d.invitee_uid === badgeUid) return true;
+  if (d.status === "accepted") {
+    const iAmInviter = d.inviter_uid === badgeUid;
+    const myCode = iAmInviter ? d.inviter_strategy_code : d.invitee_strategy_code;
+    return !myCode;
+  }
+  // Finalized duel I haven't seen yet (match result, opponent declined, etc.)
+  if (["completed", "declined", "error"].includes(d.status)) {
+    const iAmInviter = d.inviter_uid === badgeUid;
+    const seen = iAmInviter ? d.inviter_seen : d.invitee_seen;
+    return !seen;
+  }
+  return false;
+}
+
+function applyDuelSnap(snap) {
+  for (const ch of snap.docChanges()) {
+    if (ch.type === "removed") duelDocsForBadge.delete(ch.doc.id);
+    else duelDocsForBadge.set(ch.doc.id, ch.doc.data());
+  }
+  renderDuelsBadge();
+}
+
+function renderDuelsBadge() {
+  const link = document.querySelector('.sidebar-link[data-page="duels"]');
+  if (!link) return;
+  const n = [...duelDocsForBadge.values()].filter(isDuelActionable).length;
+  let badge = link.querySelector(".sidebar-badge");
+  if (n === 0) {
+    if (badge) badge.remove();
+    return;
+  }
+  if (!badge) {
+    badge = document.createElement("span");
+    badge.className = "sidebar-badge";
+    link.appendChild(badge);
+  }
+  badge.textContent = String(n);
+}
+
+function subscribeDuelsForBadge(uid) {
+  if (badgeUid === uid) return;
+  badgeUid = uid;
+  duelUnsubs.forEach((fn) => fn());
+  duelUnsubs = [];
+  duelDocsForBadge.clear();
+  const q1 = query(collection(db, "duels"), where("invitee_uid", "==", uid));
+  const q2 = query(collection(db, "duels"), where("inviter_uid", "==", uid));
+  duelUnsubs.push(onSnapshot(q1, applyDuelSnap));
+  duelUnsubs.push(onSnapshot(q2, applyDuelSnap));
+}
 
 function refreshRoleLabel() {
   const roleEl = document.getElementById("user-role");
@@ -63,6 +131,11 @@ export function initSidebar(activePage) {
     document.querySelectorAll(".sidebar-section.team-only").forEach((el) => {
       el.hidden = cachedIsAdmin;
     });
+
+    // Live duel notifications for non-admin users only.
+    if (!cachedIsAdmin) {
+      subscribeDuelsForBadge(user.uid);
+    }
   });
 
   document.addEventListener("langchange", refreshRoleLabel);

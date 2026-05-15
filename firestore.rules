@@ -5,6 +5,10 @@
 // changes lives below + in README.md → "Schema changes".
 //
 // Changelog (most recent first) :
+//   2026-05-15  Duels : top-level /duels collection for free-form 1v1
+//               practice matches between teams. Read by inviter, invitee
+//               and admin; create by inviter; update by invitee (accept /
+//               decline) and by either side to write the result.
 //   2026-05-11  Admin-run tournament : admins can now write
 //               /tournaments/{tid}/matches/* and /leaderboards/* (since the
 //               match runner lives in the admin browser via Pyodide, not in
@@ -112,6 +116,35 @@ service cloud.firestore {
         allow read: if isSignedIn();
         allow write: if isAdmin();
       }
+    }
+
+    // Duels — practice 1v1 between two teams. Schema:
+    //   inviter_uid, invitee_uid, inviter_strategy_*, invitee_strategy_*,
+    //   nb_turns, noise_level, status, created_at, responded_at,
+    //   completed_at, result.
+    //
+    // Read: both participants + admin.
+    // Create: signed in, only as the inviter, only as a fresh pending duel.
+    // Update: both participants (invitee accepts/declines; either side may
+    //   write the result/error once the match has run). Admin too.
+    // Delete: admin only (audit trail).
+    match /duels/{duelId} {
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        request.auth.uid == resource.data.inviter_uid ||
+        request.auth.uid == resource.data.invitee_uid
+      );
+      allow create: if isSignedIn() &&
+        request.auth.uid == request.resource.data.inviter_uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.invitee_uid is string &&
+        request.resource.data.invitee_uid != request.auth.uid;
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        request.auth.uid == resource.data.inviter_uid ||
+        request.auth.uid == resource.data.invitee_uid
+      );
+      allow delete: if isAdmin();
     }
   }
 }

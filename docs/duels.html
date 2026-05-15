@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Home · Axelrod</title>
+  <title>Duels · Axelrod</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body data-page="home">
+<body data-page="duels">
 
   <div class="app">
 
@@ -94,105 +94,94 @@
 
     <div class="content">
 
+      <div class="content-header content-header-row">
+        <div>
+          <h1 data-i18n="duels.title">1v1 Duels</h1>
+          <p class="lede" data-i18n="duels.subtitle">Challenge other teams to friendly practice matches.</p>
+        </div>
+        <button type="button" id="open-invite-btn" class="primary-cta" data-i18n="duels.invite">Challenge a team</button>
+      </div>
+
       <p id="no-team" class="access-denied" hidden data-i18n="noteam.message">
         You haven't been assigned to a team yet. Contact your teacher.
       </p>
 
       <main id="main" hidden>
-        <section class="welcome">
-          <div class="welcome-greeting">
-            <h1 id="welcome-greeting"></h1>
-            <p data-i18n="welcome.subtitle">Ready to outwit the sharpest minds?</p>
-          </div>
-        </section>
+        <div class="tab-bar duels-tabs">
+          <button type="button" class="tab-btn active" data-filter="inbox" data-i18n="duels.tab.inbox">Inbox <span id="inbox-badge" class="tab-badge" hidden>0</span></button>
+          <button type="button" class="tab-btn" data-filter="sent" data-i18n="duels.tab.sent">Sent</button>
+          <button type="button" class="tab-btn" data-filter="history" data-i18n="duels.tab.history">History</button>
+        </div>
 
-        <section class="hero-banner">
-          <div class="hero-banner-content">
-            <h2 class="hero-banner-title" data-i18n="hero.banner.title">AXELROD</h2>
-            <p class="hero-banner-tagline" data-i18n="hero.banner.tagline">The tournament where cooperation and betrayal forge legends.</p>
-            <a id="cta-launch" class="hero-cta" href="playground.html" data-i18n="hero.banner.cta">Launch playground →</a>
-          </div>
-          <img src="imgs/intro.png" alt="" class="hero-banner-image" />
-        </section>
-
-        <!-- Stats dashboard : 3 cards -->
-        <section class="team-dash" id="team-dash" hidden>
-
-          <!-- Card 1 : Mon profil -->
-          <div class="card team-dash-card team-dash-profile">
-            <h3 class="card-section-title small" data-i18n="team.dash.profile.title">My profile</h3>
-            <div class="team-dash-profile-body">
-              <div class="profile-stats">
-                <div class="profile-stat">
-                  <span class="profile-stat-label" data-i18n="team.dash.profile.score">Current score</span>
-                  <span class="profile-stat-big" id="profile-score">—</span>
-                  <span class="profile-stat-trend" id="profile-score-trend"></span>
-                </div>
-                <div class="profile-stat">
-                  <span class="profile-stat-label" data-i18n="team.dash.profile.rank">Ranking</span>
-                  <span class="profile-stat-rank" id="profile-rank">—</span>
-                </div>
-                <div class="profile-stat">
-                  <span class="profile-stat-label" data-i18n="team.dash.profile.winrate">Win rate</span>
-                  <span class="profile-stat-big" id="profile-winrate">—</span>
-                </div>
-              </div>
-              <div class="profile-radar-wrap"><canvas id="profile-radar"></canvas></div>
-            </div>
-          </div>
-
-          <!-- Card 2 : Stats rapides -->
-          <div class="card team-dash-card team-dash-quickstats">
-            <h3 class="card-section-title small" data-i18n="team.dash.quickstats.title">Quick stats</h3>
-            <ul class="quickstats-list">
-              <li>
-                <span class="quickstats-label" data-i18n="team.dash.quickstats.matches">Matches played</span>
-                <span class="quickstats-value" id="quickstats-matches">0</span>
-              </li>
-              <li>
-                <span class="quickstats-label" data-i18n="team.dash.quickstats.coop">Avg cooperation</span>
-                <span class="quickstats-value" id="quickstats-coop">—</span>
-              </li>
-              <li>
-                <span class="quickstats-label" data-i18n="team.dash.quickstats.avg_score">Avg score</span>
-                <span class="quickstats-value" id="quickstats-avg-score">—</span>
-              </li>
-            </ul>
-            <div class="quickstats-chart-wrap"><canvas id="quickstats-chart"></canvas></div>
-            <div class="quickstats-legend">
-              <span><span class="legend-dot" style="background:#5fe3d8"></span><span data-i18n="team.dash.quickstats.you">You</span></span>
-              <span><span class="legend-dot" style="background:#ff8a8a"></span><span data-i18n="team.dash.quickstats.meta">Meta</span></span>
-            </div>
-          </div>
-
-          <!-- Card 3 : Dernier tournoi -->
-          <div class="card team-dash-card team-dash-lasttournament">
-            <h3 class="card-section-title small" data-i18n="team.dash.lasttournament.title">Last tournament</h3>
-            <div id="lasttournament-empty" class="muted small" data-i18n="team.dash.lasttournament.empty">No completed tournament yet.</div>
-            <div id="lasttournament-content" hidden>
-              <div class="lastmatch-head">
-                <span class="lastmatch-vs" id="lasttournament-name">—</span>
-                <span class="lastmatch-time muted small" id="lasttournament-time">—</span>
-              </div>
-              <div class="lasttournament-rank">
-                <span class="lasttournament-rank-num" id="lasttournament-rank">—</span>
-                <span class="lasttournament-rank-of muted" id="lasttournament-rank-of">/ —</span>
-              </div>
-              <div class="lastmatch-meta">
-                <div><span class="quickstats-label" data-i18n="team.dash.lasttournament.score">Score</span><span class="quickstats-value" id="lasttournament-score">0</span></div>
-                <div><span class="quickstats-label" data-i18n="team.dash.lasttournament.matches">Matches</span><span class="quickstats-value" id="lasttournament-matches">0</span></div>
-              </div>
-              <a id="lasttournament-link" class="lastmatch-cta" href="#" data-i18n="team.dash.lasttournament.cta">See tournament</a>
-            </div>
-          </div>
-
-        </section>
+        <ul id="duels-list" class="duels-list"></ul>
+        <p id="duels-empty" class="muted small" hidden data-i18n="duels.empty">No duels in this category yet.</p>
       </main>
+
+      <!-- Invite modal: opponent + match params only (no strategy yet) -->
+      <div id="invite-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true" style="max-width: 520px;">
+          <div class="modal-head">
+            <h2 data-i18n="duels.invite.title">Challenge a team</h2>
+            <button class="modal-close" type="button" data-modal-close>×</button>
+          </div>
+          <label>
+            <span data-i18n="duels.invite.opponent">Opponent</span>
+            <select id="invite-opponent" required></select>
+          </label>
+          <div class="invite-params">
+            <label>
+              <span data-i18n="duels.invite.turns">Rounds</span>
+              <input type="number" id="invite-turns" min="5" max="200" value="30" />
+            </label>
+            <label>
+              <span data-i18n="duels.invite.noise">Noise %</span>
+              <input type="number" id="invite-noise" min="0" max="30" value="0" />
+            </label>
+          </div>
+          <p class="muted small" data-i18n="duels.invite.note">You'll both pick your strategies once the opponent accepts.</p>
+          <p id="invite-msg" class="validation-msg" hidden></p>
+          <div class="modal-actions">
+            <button class="btn-cancel" type="button" data-modal-close data-i18n="duels.invite.cancel">Cancel</button>
+            <button class="btn-save" type="button" id="invite-send-btn" data-i18n="duels.invite.send">Send invitation</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pick-strategy modal: shown after the duel is accepted, for either side. -->
+      <div id="pick-strategy-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true" style="max-width: 520px;">
+          <div class="modal-head">
+            <h2 data-i18n="duels.pick.title">Pick your strategy</h2>
+            <button class="modal-close" type="button" data-modal-close>×</button>
+          </div>
+          <p class="muted small" id="pick-summary"></p>
+          <label>
+            <span data-i18n="duels.pick.strategy">Strategy</span>
+            <select id="pick-strategy-select" required></select>
+          </label>
+          <p id="pick-msg" class="validation-msg" hidden></p>
+          <div class="modal-actions">
+            <button class="btn-cancel" type="button" data-modal-close data-i18n="duels.pick.cancel">Cancel</button>
+            <button class="btn-save" type="button" id="pick-confirm-btn" data-i18n="duels.pick.confirm">Lock in</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detail modal: see the match result -->
+      <div id="detail-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true" style="max-width: 680px;">
+          <div class="modal-head">
+            <h2 data-i18n="duels.detail.title">Match result</h2>
+            <button class="modal-close" type="button" data-modal-close>×</button>
+          </div>
+          <div id="detail-body"></div>
+        </div>
+      </div>
 
     </div>
   </div>
 
   <script type="module" src="js/i18n.js"></script>
-  <script type="module" src="js/team.js"></script>
+  <script type="module" src="js/duels.js"></script>
 </body>
 </html>

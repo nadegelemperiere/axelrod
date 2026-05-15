@@ -201,6 +201,27 @@ a:hover { color: var(--cyan-hover); }
   text-decoration: none;
 }
 
+.sidebar-badge {
+  margin-left: auto;
+  min-width: 1.4em;
+  padding: 0.1rem 0.4rem;
+  background: #ff6b35;
+  color: white;
+  border-radius: 999px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.3;
+  box-shadow: 0 0 8px rgba(255, 107, 53, 0.45);
+  animation: sidebar-badge-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes sidebar-badge-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255, 107, 53, 0.45); }
+  50% { box-shadow: 0 0 14px rgba(255, 107, 53, 0.75); }
+}
+
 .sidebar-icon {
   width: 30px;
   height: 30px;
@@ -5603,4 +5624,221 @@ body.dense .card-section-title.small { font-size: 0.65rem; }
   font-size: 2rem;
   margin-bottom: 0.5rem;
   opacity: 0.5;
+}
+
+/* ============================================================================
+ * Duels — team + admin pages
+ * ============================================================================ */
+
+.duels-tabs {
+  margin-bottom: 1rem;
+}
+
+.tab-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0 0.45em;
+  background: var(--cyan, #5fe3d8);
+  color: var(--bg, #0c1a1f);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: "JetBrains Mono", monospace;
+  letter-spacing: 0;
+}
+
+.duels-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.duel-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--surface, rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--border, #1d3a3f);
+  border-radius: var(--radius-sm, 6px);
+}
+
+/* Unseen final result — highlight to draw the eye until clicked. */
+.duel-row-unseen {
+  border-color: #ff6b35;
+  box-shadow: 0 0 0 1px rgba(255, 107, 53, 0.25), 0 0 14px rgba(255, 107, 53, 0.15);
+  background: rgba(255, 107, 53, 0.04);
+}
+
+.duel-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.duel-row-opponent {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.duel-row-vs {
+  color: var(--text-dim, #7d96a0);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.duel-row-strats {
+  font-family: "JetBrains Mono", monospace;
+}
+
+.duel-row-meta {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+}
+
+.duel-status {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.duel-status-pending { color: #f0c674; }
+.duel-status-accepted { color: var(--cyan, #5fe3d8); }
+.duel-status-both_pick { color: #f0c674; }
+.duel-status-your_turn { color: #f0c674; }
+.duel-status-waiting_opponent { color: var(--text-dim, #7d96a0); }
+.duel-status-running { color: var(--cyan, #5fe3d8); }
+.duel-status-completed { color: #a3d977; }
+.duel-status-declined { color: var(--text-dim, #7d96a0); }
+.duel-status-error { color: #ff6b35; }
+
+.duel-row-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.duel-row-actions button {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+}
+
+.duel-row-actions .btn-accept {
+  background: var(--cyan, #5fe3d8);
+  color: var(--bg, #0c1a1f);
+  border: none;
+}
+.duel-row-actions .btn-accept:hover { filter: brightness(1.1); }
+
+.duel-row-actions .btn-decline {
+  background: transparent;
+  color: var(--text-dim, #7d96a0);
+  border: 1px solid var(--border, #1d3a3f);
+}
+.duel-row-actions .btn-decline:hover { color: #ff6b35; border-color: #ff6b35; }
+
+.duel-row-actions .btn-view {
+  background: transparent;
+  color: var(--text, #e4ecef);
+  border: 1px solid var(--border, #1d3a3f);
+}
+.duel-row-actions .btn-view:hover { border-color: var(--cyan, #5fe3d8); color: var(--cyan, #5fe3d8); }
+
+.duel-row-score {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text, #e4ecef);
+}
+.duel-row-score .vs {
+  color: var(--text-dim, #7d96a0);
+  font-size: 0.8em;
+  margin: 0 0.3em;
+}
+
+.invite-params {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+/* Detail modal */
+.duel-detail-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-sm, 6px);
+  margin-bottom: 1rem;
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* Admin duels table */
+.admin-duels-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.85rem;
+  padding: 0.85rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border, #1d3a3f);
+  border-radius: var(--radius-sm, 6px);
+  margin-bottom: 1rem;
+}
+
+.summary-stat-list {
+  font-size: 0.85rem;
+  font-family: "JetBrains Mono", monospace;
+}
+
+.admin-duels-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.82rem;
+}
+
+.admin-duels-table thead th {
+  text-align: left;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim, #7d96a0);
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border, #1d3a3f);
+}
+
+.admin-duels-table tbody td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: top;
+}
+
+.admin-duels-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
 }
