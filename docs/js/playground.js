@@ -88,7 +88,14 @@ const els = {
   submitFormContent: document.getElementById("submit-form-content"),
   submitTournament: document.getElementById("submit-tournament"),
   submitName: document.getElementById("submit-name"),
-  submitConfirmBtn: document.getElementById("submit-confirm-btn")
+  submitConfirmBtn: document.getElementById("submit-confirm-btn"),
+  noiseSlider: document.getElementById("noise-slider"),
+  noiseValue: document.getElementById("noise-value"),
+  runAllBtn: document.getElementById("run-all-btn"),
+  summarySection: document.getElementById("summary-section"),
+  summaryMeta: document.getElementById("summary-meta"),
+  summaryStats: document.getElementById("summary-stats"),
+  summaryBody: document.getElementById("summary-body")
 };
 
 let activeStrategyId = null;
@@ -109,11 +116,15 @@ let selectedOpponent = null;
 let activeTab = "graph";
 
 // Results cache keyed by opponentKey(opp). Each entry is
-// {result, captured, codeVersion}. We bump codeVersion on every edit so that
-// clicking back to an already-tested opponent re-runs if the code has changed,
-// but is instant otherwise (avoids reshuffling random/noisy outcomes).
+// {result, captured, runVersion}. We bump runVersion on every edit AND on
+// every noise-slider change so that switching back to an already-tested
+// opponent re-runs if any match input has changed, but is instant otherwise.
 const resultsCache = new Map();
-let codeVersion = 0;
+let runVersion = 0;
+
+// Noise = probability each move is flipped before scoring. Stored as a
+// fraction (0..0.3) but exposed to the user as a percentage.
+let currentNoise = 0;
 
 // ---------- Boot ----------
 loadTeamContext({
@@ -122,6 +133,7 @@ loadTeamContext({
     await loadTeamStrategies();
     opponents = loadOpponents();
     selectedOpponent = opponents[0] || DEFAULT_OPPONENTS[0];
+    initNoiseControl();
     setMatchAvatarYou(ctx.team.display_name);
     renderOpponents();
 
@@ -224,6 +236,36 @@ function saveOpponents() {
   localStorage.setItem(opponentsKey(), JSON.stringify(opponents));
 }
 
+function noiseKey() {
+  return `axelrod-noise-${context.uid}`;
+}
+
+function initNoiseControl() {
+  const stored = localStorage.getItem(noiseKey());
+  if (stored != null) {
+    const n = parseFloat(stored);
+    if (!Number.isNaN(n) && n >= 0 && n <= 1) currentNoise = n;
+  } else if (context.tournament && typeof context.tournament.noise_level === "number") {
+    // First-time visit: seed from the tournament's noise so the playground
+    // matches tournament conditions until the student decides to explore.
+    currentNoise = Math.min(0.3, Math.max(0, context.tournament.noise_level));
+  }
+  els.noiseSlider.value = String(Math.round(currentNoise * 100));
+  renderNoiseLabel();
+  els.noiseSlider.addEventListener("input", () => {
+    const pct = parseInt(els.noiseSlider.value, 10) || 0;
+    currentNoise = pct / 100;
+    localStorage.setItem(noiseKey(), String(currentNoise));
+    renderNoiseLabel();
+    // Invalidate cached results — they were computed at a different noise.
+    runVersion++;
+  });
+}
+
+function renderNoiseLabel() {
+  els.noiseValue.textContent = `${Math.round(currentNoise * 100)}%`;
+}
+
 async function loadTeamStrategies() {
   teamStrategies = new Map();
   try {
@@ -263,7 +305,7 @@ async function initEditor(initialCode) {
   setSaveState(true);
   editor.onDidChangeModelContent(() => {
     setSaveState(false);
-    codeVersion++;
+    runVersion++;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       localStorage.setItem(storageKey(), editor.getValue());
@@ -297,6 +339,7 @@ async function initPyodide() {
     pyodide.runPython(sandboxCode);
     els.loadingBanner.hidden = true;
     els.runBtn.disabled = false;
+    els.runAllBtn.disabled = false;
     els.saveBtn.disabled = activeStrategyLocked;
     els.submitBtn.disabled = false;
   } catch (err) {
@@ -412,6 +455,7 @@ function renderOpponents() {
       }
       saveOpponents();
       renderOpponents();
+      renderGlobalSummary();
     });
     els.opponentsList.appendChild(li);
   }
@@ -518,67 +562,176 @@ els.resetBtn.addEventListener("click", () => {
 
 // Run a match against `opp`, or pull the result from cache if the code hasn't
 // changed since we last ran it. `force=true` skips the cache (used by the Run
-// button to let students re-roll random/noisy outcomes).
-function runMatchAgainst(opp, { force = false } = {}) {
+// button to let students re-roll random/noisy outcomes). `renderDetails=false`
+// runs silently in the background (used by "Run all" — only the global
+// summary gets updated, not the big per-match graph/cells).
+function runMatchAgainst(opp, { force = false, renderDetails = true } = {}) {
   if (!pyodide) return;
   if (!opp) {
-    els.arenaError.textContent = "No opponent selected.";
-    els.arenaError.hidden = false;
+    if (renderDetails) {
+      els.arenaError.textContent = "No opponent selected.";
+      els.arenaError.hidden = false;
+    }
     return;
   }
-  els.arenaError.hidden = true;
 
   const key = opponentKey(opp);
   const cached = resultsCache.get(key);
-  if (!force && cached && cached.codeVersion === codeVersion) {
-    printBuffer.length = 0;
-    if (cached.captured) printBuffer.push(cached.captured);
-    renderConsoleOutput();
-    renderMatch(cached.result, opp);
-    return;
-  }
+  let result, captured;
 
-  const code = editor.getValue();
-  const tournament = context.tournament || { nb_turns: 30, noise_level: 0 };
-  const nbTurns = tournament.nb_turns;
-  const noise = tournament.noise_level;
+  if (!force && cached && cached.runVersion === runVersion) {
+    result = cached.result;
+    captured = cached.captured;
+  } else {
+    const code = editor.getValue();
+    const tournament = context.tournament || { nb_turns: 30 };
+    const nbTurns = tournament.nb_turns;
+    const noise = currentNoise;
 
-  pyodide.runPython("_capture_start()");
-  let result;
-  if (opp.type === "strategy") {
-    const strat = teamStrategies.get(opp.id);
-    if (!strat) {
-      pyodide.runPython("_capture_end()");
-      els.arenaError.textContent = t("playground.opponents.strategy.missing");
-      els.arenaError.hidden = false;
-      els.matchSection.hidden = true;
-      els.analysisSection.hidden = true;
+    pyodide.runPython("_capture_start()");
+    if (opp.type === "strategy") {
+      const strat = teamStrategies.get(opp.id);
+      if (!strat) {
+        pyodide.runPython("_capture_end()");
+        if (renderDetails) {
+          els.arenaError.textContent = t("playground.opponents.strategy.missing");
+          els.arenaError.hidden = false;
+          els.matchSection.hidden = true;
+          els.analysisSection.hidden = true;
+        }
+        return;
+      }
+      result = pythonRunTwoStrategies(code, strat.code, nbTurns, noise, null);
+    } else {
+      result = pythonRunTest(code, opp.id, nbTurns, noise, null);
+    }
+    captured = pyodide.runPython("_capture_end()") || "";
+
+    if (!result.ok) {
+      if (renderDetails) {
+        printBuffer.length = 0;
+        if (captured) printBuffer.push(captured);
+        renderConsoleOutput();
+        els.arenaError.textContent = result.error;
+        els.arenaError.hidden = false;
+        els.matchSection.hidden = true;
+        els.analysisSection.hidden = true;
+      }
       return;
     }
-    result = pythonRunTwoStrategies(code, strat.code, nbTurns, noise, null);
-  } else {
-    result = pythonRunTest(code, opp.id, nbTurns, noise, null);
+    resultsCache.set(key, { result, captured, runVersion });
   }
-  const captured = pyodide.runPython("_capture_end()");
-  printBuffer.length = 0;
-  if (captured) printBuffer.push(captured);
-  renderConsoleOutput();
-  if (!result.ok) {
-    // Don't cache failures — student will fix code and the version bump will
-    // invalidate anyway, but being explicit avoids stale error displays.
-    els.arenaError.textContent = result.error;
-    els.arenaError.hidden = false;
-    els.matchSection.hidden = true;
-    els.analysisSection.hidden = true;
-    return;
+
+  if (renderDetails) {
+    els.arenaError.hidden = true;
+    printBuffer.length = 0;
+    if (captured) printBuffer.push(captured);
+    renderConsoleOutput();
+    renderMatch(result, opp);
   }
-  resultsCache.set(key, { result, captured: captured || "", codeVersion });
-  renderMatch(result, opp);
+  renderGlobalSummary();
+}
+
+function runAllOpponents() {
+  if (!pyodide || opponents.length === 0) return;
+  // Run every non-selected opponent silently; the currently-selected one
+  // gets the full detail render at the end so the student keeps that view.
+  for (const opp of opponents) {
+    if (selectedOpponent && opponentKey(opp) === opponentKey(selectedOpponent)) continue;
+    runMatchAgainst(opp, { renderDetails: false });
+  }
+  if (selectedOpponent) runMatchAgainst(selectedOpponent);
+  else renderGlobalSummary();
 }
 
 els.runBtn.addEventListener("click", () => {
   runMatchAgainst(selectedOpponent, { force: true });
 });
+
+els.runAllBtn.addEventListener("click", runAllOpponents);
+
+function renderGlobalSummary() {
+  if (!els.summarySection) return;
+
+  let totalA = 0, totalB = 0;
+  let wins = 0, losses = 0, ties = 0;
+  let totalCoopA = 0, totalCoopB = 0, totalTurns = 0;
+  const rows = [];
+
+  for (const opp of opponents) {
+    const cached = resultsCache.get(opponentKey(opp));
+    const fresh = cached && cached.runVersion === runVersion;
+    if (!fresh) {
+      rows.push({ opp, fresh: false });
+      continue;
+    }
+    const r = cached.result;
+    const coopA = countChar(r.history_a, "C");
+    const coopB = countChar(r.history_b, "C");
+    const nb = r.history_a.length || 1;
+    const outcome = r.score_a > r.score_b ? "win" : r.score_a < r.score_b ? "loss" : "tie";
+    totalA += r.score_a;
+    totalB += r.score_b;
+    totalCoopA += coopA;
+    totalCoopB += coopB;
+    totalTurns += nb;
+    if (outcome === "win") wins++;
+    else if (outcome === "loss") losses++;
+    else ties++;
+    rows.push({ opp, fresh: true, result: r, outcome, coopA, coopB, nb });
+  }
+
+  const testedCount = rows.filter((r) => r.fresh).length;
+  if (testedCount === 0) {
+    els.summarySection.hidden = true;
+    return;
+  }
+  els.summarySection.hidden = false;
+
+  els.summaryMeta.textContent = t("playground.summary.meta", {
+    tested: testedCount,
+    total: opponents.length
+  });
+
+  const avgCoopA = totalTurns ? Math.round((totalCoopA / totalTurns) * 100) : 0;
+  const avgCoopB = totalTurns ? Math.round((totalCoopB / totalTurns) * 100) : 0;
+  els.summaryStats.innerHTML = `
+    <div class="summary-stat">
+      <span class="summary-stat-label">${t("playground.summary.total")}</span>
+      <span class="summary-stat-value"><span class="you-val">${totalA}</span></span>
+    </div>
+    <div class="summary-stat">
+      <span class="summary-stat-label">${t("playground.summary.record")}</span>
+      <span class="summary-stat-value">${t("playground.summary.record.value", { wins, ties, losses })}</span>
+    </div>
+    <div class="summary-stat">
+      <span class="summary-stat-label">${t("playground.summary.coop")}</span>
+      <span class="summary-stat-value"><span class="you-val">${avgCoopA}%</span></span>
+    </div>
+  `;
+
+  els.summaryBody.innerHTML = rows.map((row) => {
+    const label = escapeHtml(opponentLabel(row.opp));
+    if (!row.fresh) {
+      return `<tr class="summary-row stale">
+        <td>${label}</td>
+        <td colspan="4" class="muted small">${t("playground.summary.not_run")}</td>
+      </tr>`;
+    }
+    const r = row.result;
+    const winnerEmoji = row.outcome === "win" ? "🏆" : row.outcome === "loss" ? "💀" : "🤝";
+    const winnerClass = `outcome-${row.outcome}`;
+    const coopAPct = Math.round((row.coopA / row.nb) * 100);
+    const coopBPct = Math.round((row.coopB / row.nb) * 100);
+    return `<tr class="summary-row ${winnerClass}">
+      <td>${label}</td>
+      <td class="num you">${r.score_a}</td>
+      <td class="num opp">${r.score_b}</td>
+      <td class="outcome" title="${escapeAttr(t(`arena.result.${row.outcome}`))}">${winnerEmoji}</td>
+      <td class="num small muted">${coopAPct}% / ${coopBPct}%</td>
+    </tr>`;
+  }).join("");
+}
 
 function renderConsoleOutput() {
   if (!els.consoleCard) return;

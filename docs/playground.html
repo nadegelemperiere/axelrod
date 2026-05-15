@@ -152,10 +152,19 @@
 
         </section>
 
-        <!-- Action buttons -->
+        <!-- Action buttons + match settings -->
         <div class="match-actions">
           <button id="run-btn" class="btn-launch" type="button" disabled data-i18n="playground.run">▶ Run match</button>
+          <button id="run-all-btn" class="btn-launch-secondary" type="button" disabled data-i18n="playground.run.all">▶ Run all</button>
           <button id="reset-btn" class="btn-reset" type="button" data-i18n="playground.reset">Reset</button>
+          <div class="noise-control">
+            <label for="noise-slider">
+              <span data-i18n="playground.noise.label">Noise</span>
+              <span class="noise-value" id="noise-value">0%</span>
+            </label>
+            <input type="range" id="noise-slider" min="0" max="30" step="1" value="0" />
+            <span class="noise-hint muted small" data-i18n="playground.noise.hint">probability each move is flipped</span>
+          </div>
         </div>
 
         <p id="arena-error" class="error" hidden></p>
@@ -227,6 +236,27 @@
             </div>
           </div>
 
+        </section>
+
+        <!-- Global summary across all opponents in the list -->
+        <section id="summary-section" class="card summary-section" hidden>
+          <div class="pg-card-head">
+            <h3 class="pg-card-title" data-i18n="playground.summary.title">Global summary</h3>
+            <span class="summary-meta muted small" id="summary-meta"></span>
+          </div>
+          <div class="summary-stats" id="summary-stats"></div>
+          <table class="summary-table">
+            <thead>
+              <tr>
+                <th data-i18n="playground.summary.col.opponent">Opponent</th>
+                <th data-i18n="playground.summary.col.you">You</th>
+                <th data-i18n="playground.summary.col.opp">Opp.</th>
+                <th data-i18n="playground.summary.col.outcome">Outcome</th>
+                <th data-i18n="playground.summary.col.coop">Coop %</th>
+              </tr>
+            </thead>
+            <tbody id="summary-body"></tbody>
+          </table>
         </section>
 
         <!-- Console output : captures everything the strategy prints during a match -->

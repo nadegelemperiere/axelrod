@@ -36,6 +36,51 @@ def _capture_end():
     return captured
 
 
+# ---- Infinite-loop protection ---------------------------------------------
+# Pyodide runs Python synchronously on the browser's main thread, so a student
+# writing `while True: pass` would freeze the tab — including the tournament
+# runner's tab on the admin page. We install a per-line trace function around
+# each play() call: if it executes more than _DEFAULT_STEP_LIMIT Python lines,
+# we raise StepLimitExceeded and report the offending bot as crashed.
+#
+# Caveat: a determined attacker can still wrap their loop in `try: ... except:`
+# and swallow the exception, slowing the tracer down to a crawl but not
+# returning. For real isolation we'd need a Web Worker with terminate(). This
+# is "good enough" for accidental infinite loops, which is the realistic
+# threat in a classroom setting.
+
+class StepLimitExceeded(Exception):
+    """Raised when a strategy executes more Python lines than allowed."""
+
+
+_DEFAULT_STEP_LIMIT = 5000  # plenty for O(n²) on 70 turns; tiny for infinite loops
+
+
+def _call_with_step_limit(fn, args, limit=None):
+    """Calls fn(*args) with a hard cap on executed Python lines.
+
+    The tracer uses a closure (faster than module globals in Pyodide) and is
+    rebuilt per call so the limit can be tuned without touching shared state.
+    """
+    cap = limit if limit is not None else _DEFAULT_STEP_LIMIT
+    state = [0]
+
+    def tracer(frame, event, arg):
+        if event == 'line':
+            state[0] += 1
+            if state[0] > cap:
+                raise StepLimitExceeded(
+                    f"executed more than {cap} Python lines in a single call"
+                )
+        return tracer
+
+    sys.settrace(tracer)
+    try:
+        return fn(*args)
+    finally:
+        sys.settrace(None)
+
+
 PAYOFF = {
     ('C', 'C'): (3, 3),
     ('C', 'D'): (0, 5),
@@ -107,6 +152,9 @@ FORBIDDEN_IMPORTS = {
     'os', 'sys', 'subprocess', 'socket', 'shutil', 'pathlib', 'requests',
     'urllib', 'http', 'pickle', 'marshal', 'ctypes', 'multiprocessing',
     'threading', 'asyncio',
+    # `time.sleep` is a C call — invisible to our line tracer — so it can
+    # block the tab regardless of the step limit. Block the whole module.
+    'time',
 }
 
 FORBIDDEN_NAMES = {'eval', 'exec', '__import__', 'compile', 'open'}
@@ -160,7 +208,9 @@ def validate_bot_code(code):
         return {'ok': False, 'message': "play is not a function.", 'play': None}
 
     try:
-        result = play([], [])
+        result = _call_with_step_limit(play, ([], []))
+    except StepLimitExceeded as e:
+        return {'ok': False, 'message': f'play() got stuck (likely infinite loop) on round 0: {e}', 'play': None}
     except Exception as e:
         return {'ok': False, 'message': f'play() crashed on round 0: {type(e).__name__}: {e}', 'play': None}
     if result not in ('C', 'D'):
@@ -177,14 +227,18 @@ def run_match(play_a, play_b, nb_turns=30, noise_level=0.0):
 
     for turn in range(nb_turns):
         try:
-            move_a = play_a(list(hist_a), list(hist_b))
+            move_a = _call_with_step_limit(play_a, (list(hist_a), list(hist_b)))
+        except StepLimitExceeded as e:
+            return {'ok': False, 'error': f'Your bot got stuck (likely infinite loop) on round {turn}: {e}'}
         except Exception as e:
             return {'ok': False, 'error': f'Your bot crashed on round {turn}: {type(e).__name__}: {e}'}
         if move_a not in ('C', 'D'):
             return {'ok': False, 'error': f"Your bot returned {move_a!r} on round {turn}, expected 'C' or 'D'."}
 
         try:
-            move_b = play_b(list(hist_b), list(hist_a))
+            move_b = _call_with_step_limit(play_b, (list(hist_b), list(hist_a)))
+        except StepLimitExceeded as e:
+            return {'ok': False, 'error': f'Opponent got stuck (likely infinite loop) on round {turn}: {e}'}
         except Exception as e:
             return {'ok': False, 'error': f"Opponent crashed on round {turn}: {type(e).__name__}: {e}"}
         if move_b not in ('C', 'D'):
@@ -376,16 +430,16 @@ def run_tournament_match(code_a, code_b, nb_turns=30, noise_level=0.0, seed=None
     if not va['ok']:
         return {
             'ok': True, 'forfeit': 'a',
-            'score_a': 0, 'score_b': nb_turns * 5,
-            'history_a': '', 'history_b': 'D' * nb_turns,
+            'score_a': 0, 'score_b': 0,
+            'history_a': '', 'history_b': '',
             'error_a': va['message'],
             'nb_turns': nb_turns, 'noise_level': noise_level,
         }
     if not vb['ok']:
         return {
             'ok': True, 'forfeit': 'b',
-            'score_a': nb_turns * 5, 'score_b': 0,
-            'history_a': 'D' * nb_turns, 'history_b': '',
+            'score_a': 0, 'score_b': 0,
+            'history_a': '', 'history_b': '',
             'error_b': vb['message'],
             'nb_turns': nb_turns, 'noise_level': noise_level,
         }
