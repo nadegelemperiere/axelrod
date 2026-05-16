@@ -106,6 +106,17 @@
         <p id="admin-duels-empty" class="muted small" hidden data-i18n="admin.duels.empty">No duels yet.</p>
       </main>
 
+      <!-- Duel detail modal: full code + match result for the admin. -->
+      <div id="duel-detail-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true" style="max-width: 960px;">
+          <div class="modal-head">
+            <h2 data-i18n="admin.duels.detail.title">Duel detail</h2>
+            <button class="modal-close" type="button" data-modal-close>×</button>
+          </div>
+          <div id="duel-detail-body"></div>
+        </div>
+      </div>
+
     </div>
   </div>
 

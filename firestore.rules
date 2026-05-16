@@ -5,6 +5,11 @@
 // changes lives below + in README.md → "Schema changes".
 //
 // Changelog (most recent first) :
+//   2026-05-16  Strategy lock cleanup : admin can now update a team's
+//               /strategies docs, so that removing a team from a tournament
+//               can also clear the strategy's lock fields. Without this,
+//               strategies stay "locked" to a tournament the team is no
+//               longer registered to.
 //   2026-05-15  Duels : top-level /duels collection for free-form 1v1
 //               practice matches between teams. Read by inviter, invitee
 //               and admin; create by inviter; update by invitee (accept /
@@ -70,11 +75,13 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
 
       // Bibliothèque de stratégies — privée à l'équipe propriétaire en
-      // écriture, mais lisible par les admins (pour les compteurs côté
-      // panneau admin) et par l'équipe elle-même.
+      // écriture, lisible par les admins (pour les compteurs côté panneau
+      // admin) et par l'équipe elle-même. Admins peuvent aussi écrire,
+      // pour pouvoir nettoyer les champs lock quand ils retirent une
+      // équipe d'un tournoi.
       match /strategies/{strategyId} {
         allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-        allow create, update, delete: if isSignedIn() && request.auth.uid == uid;
+        allow create, update, delete: if isSignedIn() && (request.auth.uid == uid || isAdmin());
       }
 
       // Historique des soumissions de l'équipe — append-only. Chaque submit

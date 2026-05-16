@@ -21,7 +21,9 @@ const els = {
   tabs: document.querySelectorAll(".duels-tabs .tab-btn"),
   body: document.getElementById("admin-duels-body"),
   empty: document.getElementById("admin-duels-empty"),
-  stats: document.getElementById("admin-duels-stats")
+  stats: document.getElementById("admin-duels-stats"),
+  detailModal: document.getElementById("duel-detail-modal"),
+  detailBody: document.getElementById("duel-detail-body")
 };
 
 let allDuels = [];
@@ -73,6 +75,15 @@ function render() {
   }
   els.empty.hidden = true;
   els.body.innerHTML = rows.map(rowHtml).join("");
+  // Wire click-to-open on each row. Re-attach every render since innerHTML
+  // replacement nukes previous listeners.
+  els.body.querySelectorAll("tr[data-duel-id]").forEach((tr) => {
+    tr.addEventListener("click", () => {
+      const id = tr.dataset.duelId;
+      const duel = allDuels.find((d) => d.id === id);
+      if (duel) openDetailModal(duel);
+    });
+  });
 }
 
 function renderStats(duels) {
@@ -126,7 +137,7 @@ function rowHtml(d) {
     resultCell = `<span class="ko" title="${escapeAttr(d.error || "")}">error</span>`;
   }
   return `
-    <tr>
+    <tr data-duel-id="${escapeAttr(d.id)}" class="admin-duel-row">
       <td class="muted small">${formatTs(d.created_at)}</td>
       <td>${escapeHtml(d.inviter_team_name || "?")}</td>
       <td>${escapeHtml(d.invitee_team_name || "?")}</td>
@@ -140,6 +151,108 @@ function rowHtml(d) {
     </tr>
   `;
 }
+
+// ---------- Detail modal ----------
+function openDetailModal(d) {
+  const r = d.result || {};
+  const hasResult = d.status === "completed" && r.score_a !== undefined;
+  const winner =
+    !hasResult ? null
+    : r.score_a > r.score_b ? "a"
+    : r.score_b > r.score_a ? "b"
+    : "tie";
+
+  const resultBlock = hasResult ? `
+    <div class="admin-duel-result">
+      <div class="admin-duel-result-scores">
+        <div class="${winner === "a" ? "winner" : ""}">
+          <div class="muted small">${escapeHtml(d.inviter_team_name)}</div>
+          <div class="score">${r.score_a}</div>
+        </div>
+        <div class="muted small">vs</div>
+        <div class="${winner === "b" ? "winner" : ""}">
+          <div class="muted small">${escapeHtml(d.invitee_team_name)}</div>
+          <div class="score">${r.score_b}</div>
+        </div>
+      </div>
+      <div class="admin-duel-histories">
+        <div class="match-row">
+          <span class="match-row-label">${escapeHtml(d.inviter_team_name)}</span>
+          <div class="match-cells">${renderCells(r.history_a || "")}</div>
+        </div>
+        <div class="match-row">
+          <span class="match-row-label">${escapeHtml(d.invitee_team_name)}</span>
+          <div class="match-cells">${renderCells(r.history_b || "")}</div>
+        </div>
+      </div>
+    </div>
+  ` : d.status === "error" ? `
+    <p class="error">${escapeHtml(d.error || "Match failed")}</p>
+  ` : d.status === "declined" ? `
+    <p class="muted">${escapeHtml(t("duels.detail.declined"))}</p>
+  ` : `
+    <p class="muted small">${escapeHtml(t("admin.duels.detail.no_result_yet"))}</p>
+  `;
+
+  els.detailBody.innerHTML = `
+    <div class="admin-duel-meta">
+      <div><span class="muted small">${escapeHtml(t("admin.duels.col.date"))} :</span> ${formatTs(d.created_at)}</div>
+      <div><span class="muted small">${escapeHtml(t("admin.duels.col.params"))} :</span> ${d.nb_turns} ${escapeHtml(t("playground.match.tours"))} · ${Math.round((d.noise_level || 0) * 100)}% ${escapeHtml(t("playground.noise.label").toLowerCase())}</div>
+      <div><span class="muted small">${escapeHtml(t("admin.duels.col.status"))} :</span> <span class="duel-status duel-status-${d.status}">${escapeHtml(t(`duels.status.${d.status}`))}</span></div>
+    </div>
+
+    ${resultBlock}
+
+    <h3 class="admin-duel-code-heading">${escapeHtml(t("admin.duels.detail.code"))}</h3>
+    <div class="admin-duel-codes">
+      <div class="admin-duel-code-block">
+        <div class="admin-duel-code-head">
+          <strong>${escapeHtml(d.inviter_team_name || "?")}</strong>
+          <span class="muted small">${escapeHtml(d.inviter_strategy_name || t("admin.duels.detail.no_strategy"))}</span>
+        </div>
+        <pre class="admin-duel-code">${escapeHtml(d.inviter_strategy_code || "")}</pre>
+      </div>
+      <div class="admin-duel-code-block">
+        <div class="admin-duel-code-head">
+          <strong>${escapeHtml(d.invitee_team_name || "?")}</strong>
+          <span class="muted small">${escapeHtml(d.invitee_strategy_name || t("admin.duels.detail.no_strategy"))}</span>
+        </div>
+        <pre class="admin-duel-code">${escapeHtml(d.invitee_strategy_code || "")}</pre>
+      </div>
+    </div>
+  `;
+  openModal(els.detailModal);
+}
+
+function renderCells(str) {
+  let out = "";
+  for (const c of str) {
+    out += `<span class="cell ${c === "C" ? "c" : "d"}">${c}</span>`;
+  }
+  return out;
+}
+
+// ---------- Modal helpers ----------
+function openModal(modal) {
+  modal.hidden = false;
+  modal.addEventListener("click", onBackdropClick);
+}
+function closeModal(modal) {
+  modal.hidden = true;
+  modal.removeEventListener("click", onBackdropClick);
+}
+function onBackdropClick(e) {
+  if (e.target === e.currentTarget || e.target.dataset.modalClose !== undefined || e.target.classList.contains("modal-close")) {
+    closeModal(e.currentTarget);
+  }
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    document.querySelectorAll(".modal-backdrop").forEach((m) => {
+      if (!m.hidden) closeModal(m);
+    });
+  }
+});
 
 function formatTs(ts) {
   const ms = ts?.toMillis?.() ?? 0;

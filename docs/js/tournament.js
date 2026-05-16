@@ -28,6 +28,7 @@ const els = {
   launchBtn: document.getElementById("launch-btn"),
   launchMsg: document.getElementById("launch-msg"),
   runBtn: document.getElementById("run-matches-btn"),
+  runCancelBtn: document.getElementById("run-cancel-btn"),
   runMsg: document.getElementById("run-msg"),
   runProgress: document.getElementById("run-progress"),
   runProgressLabel: document.getElementById("run-progress-label"),
@@ -208,6 +209,7 @@ function updateStatusUI() {
   // running → Run matches button.
   els.launchBtn.hidden = status !== "open_submission";
   els.runBtn.hidden = status !== "running";
+  els.runCancelBtn.hidden = status !== "running";
 
   if (status === "open_submission") {
     const hasTeams = teamsData.length > 0;
@@ -384,8 +386,31 @@ function renderTeamsList() {
   els.teamsList.querySelectorAll("[data-del]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       if (!confirm(t("tournament.remove.confirm"))) return;
+      const teamUid = btn.dataset.del;
       try {
-        await deleteDoc(doc(db, "tournaments", tournamentId, "teams", btn.dataset.del));
+        // Read the participation doc first to grab the bot_strategy_id —
+        // we need it to also clear the lock fields on the team's strategy.
+        // Otherwise the strategy stays "locked" to a tournament the team
+        // is no longer registered to.
+        const partRef = doc(db, "tournaments", tournamentId, "teams", teamUid);
+        const partSnap = await getDoc(partRef);
+        const stratId = partSnap.exists() ? partSnap.data().bot_strategy_id : null;
+
+        await deleteDoc(partRef);
+
+        if (stratId) {
+          try {
+            await updateDoc(doc(db, "teams", teamUid, "strategies", stratId), {
+              last_submitted_at: null,
+              last_submitted_tournament_id: null
+            });
+          } catch (e) {
+            // Strategy may have been deleted already, or doesn't exist —
+            // not fatal, just log it. The participation is gone either way.
+            console.warn("Could not clear strategy lock", e);
+          }
+        }
+
         await Promise.all([refreshAvailable(), refreshTeams()]);
       } catch (err) {
         console.error(err);
@@ -530,6 +555,45 @@ els.runBtn.addEventListener("click", async () => {
   await doRunMatches();
 });
 
+// Soft-cancel: the run loop checks `cancelRequested` between matches and
+// throws CancelledError when set. If no run is in progress, clicking Cancel
+// still rolls back the status (e.g. the page was reloaded mid-run and the
+// tournament is stuck in "running"). The error banner is ephemeral —
+// stored only in this admin's session, not persisted.
+let cancelRequested = false;
+class CancelledError extends Error {
+  constructor() { super("cancelled"); this.name = "CancelledError"; }
+}
+
+els.runCancelBtn.addEventListener("click", async () => {
+  if (!confirm(t("tournament.run.cancel.confirm"))) return;
+  cancelRequested = true;
+  // If no run is actually executing right now, doRunMatches' catch won't
+  // fire, so do the rollback explicitly here. Idempotent either way.
+  if (els.runBtn.disabled === false) {
+    try {
+      await rollbackToOpen(t("tournament.run.cancel.success"));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+});
+
+// Sets the tournament back to open_submission and shows an error/info banner.
+// Used both by the catch in doRunMatches and by the manual cancel handler.
+async function rollbackToOpen(bannerMessage) {
+  try {
+    await updateDoc(doc(db, "tournaments", tournamentId), { status: "open_submission" });
+  } catch (e) {
+    console.warn("Could not roll back tournament status", e);
+  }
+  tournamentData.status = "open_submission";
+  els.runProgress.hidden = true;
+  els.runBtn.disabled = false;
+  updateStatusUI();
+  if (bannerMessage) showMsg(els.runMsg, false, bannerMessage);
+}
+
 // The actual runner. Called either from the resume button or chained right
 // after a successful Launch (so the admin doesn't need to click twice).
 async function doRunMatches() {
@@ -537,6 +601,7 @@ async function doRunMatches() {
   els.runBtn.disabled = true;
   els.runProgress.hidden = false;
   els.runProgressBar.style.width = "0%";
+  cancelRequested = false;
   try {
     setRunStage(t("tournament.run.loading_pyodide"));
     await ensurePyodide();
@@ -571,6 +636,7 @@ async function doRunMatches() {
     }
 
     for (let i = 0; i < pairs.length; i++) {
+      if (cancelRequested) throw new CancelledError();
       const [a, b] = pairs[i];
       setRunStage(t("tournament.run.match", { i: i + 1, n: pairs.length, a: a.team_name, b: b.team_name }));
       els.runProgressBar.style.width = `${Math.round((i / pairs.length) * 100)}%`;
@@ -627,9 +693,13 @@ async function doRunMatches() {
     }, 1200);
   } catch (err) {
     console.error(err);
-    els.runProgress.hidden = true;
-    showMsg(els.runMsg, false, t("tournament.run.error", { msg: err.message || err }));
-    els.runBtn.disabled = false;
+    // Roll the tournament back to open_submission so the admin can fix
+    // whatever broke (e.g. a team's bot that crashed Pyodide) and re-launch.
+    // The error stays in the page until refresh — banner is ephemeral.
+    const message = err instanceof CancelledError
+      ? t("tournament.run.cancel.success")
+      : t("tournament.run.error", { msg: err.message || err });
+    await rollbackToOpen(message);
   }
 }
 

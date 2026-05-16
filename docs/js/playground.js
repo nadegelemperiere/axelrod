@@ -89,6 +89,7 @@ const els = {
   submitTournament: document.getElementById("submit-tournament"),
   submitName: document.getElementById("submit-name"),
   submitConfirmBtn: document.getElementById("submit-confirm-btn"),
+  submitModalMsg: document.getElementById("submit-modal-msg"),
   noiseSlider: document.getElementById("noise-slider"),
   noiseValue: document.getElementById("noise-value"),
   runAllBtn: document.getElementById("run-all-btn"),
@@ -1096,6 +1097,7 @@ els.submitBtn.addEventListener("click", async () => {
   els.submitChecking.hidden = false;
   els.submitBlocked.hidden = true;
   els.submitFormContent.hidden = true;
+  els.submitModalMsg.hidden = true;
   els.submitConfirmBtn.disabled = true;
   openSimpleModal(els.submitModal);
 
@@ -1160,22 +1162,30 @@ els.submitConfirmBtn.addEventListener("click", async () => {
   }
   els.submitConfirmBtn.disabled = true;
   try {
-    // Double-check race condition : someone else (e.g. teammate on another tab) just submitted
-    const guardSnap = await getDoc(
-      doc(db, "tournaments", targetTournamentId, "teams", context.uid)
-    );
-    if (guardSnap.exists() && guardSnap.data().bot_code) {
-      closeSimpleModal(els.submitModal);
-      showValidationMsg(els.submitMsg,
-        { ok: false, message: t("playground.submit.modal.already_submitted", { name: targetTournamentName }) });
+    const code = editor.getValue();
+    const validation = pythonValidate(code);
+    // Refuse upfront if the current code doesn't validate — submitting an
+    // invalid bot would just forfeit at match time. The error has to land
+    // inside the modal: the .submit-msg on the main page is hidden behind
+    // it while the modal is open.
+    if (!validation.ok) {
+      showValidationMsg(els.submitModalMsg,
+        { ok: false, message: t("submit.invalid") + " " + validation.message });
+      els.submitConfirmBtn.disabled = false;
       return;
     }
 
-    const code = editor.getValue();
-    const validation = pythonValidate(code);
+    // If a different strategy was previously submitted to this tournament,
+    // unlock it so the team can edit it again. This is the resubmission
+    // path — replacing a previously-submitted bot with a new one is allowed.
+    const guardSnap = await getDoc(
+      doc(db, "tournaments", targetTournamentId, "teams", context.uid)
+    );
+    const previousStrategyId = guardSnap.exists() ? guardSnap.data().bot_strategy_id : null;
+
     const submissionName = els.submitName.value.trim() || activeStrategyName || "Untitled";
     const validationFields = {
-      validation_status: validation.ok ? "ok" : "error",
+      validation_status: "ok",
       validation_message: validation.message
     };
 
@@ -1189,7 +1199,6 @@ els.submitConfirmBtn.addEventListener("click", async () => {
 
     let strategyId = activeStrategyId;
     if (strategyId) {
-      // Update existing strategy: code, validation, timestamps.
       await updateDoc(
         doc(db, "teams", context.uid, "strategies", strategyId),
         {
@@ -1200,7 +1209,6 @@ els.submitConfirmBtn.addEventListener("click", async () => {
         }
       );
     } else {
-      // No active strategy yet → create one from this submission.
       const newStratRef = await addDoc(
         collection(db, "teams", context.uid, "strategies"),
         {
@@ -1218,14 +1226,29 @@ els.submitConfirmBtn.addEventListener("click", async () => {
       activeStrategyName = submissionName;
     }
 
-    // Submit by writing bot_* fields onto the team's participation doc
+    // If a *different* strategy was previously submitted to this tournament,
+    // clear its lock fields so the team can edit it again. Same strategy
+    // resubmitting (e.g. updated code) just overrides its own lock — no need
+    // to touch anything else.
+    if (previousStrategyId && previousStrategyId !== strategyId) {
+      try {
+        await updateDoc(
+          doc(db, "teams", context.uid, "strategies", previousStrategyId),
+          { last_submitted_at: null, last_submitted_tournament_id: null }
+        );
+      } catch (e) {
+        console.warn("Could not unlock previous strategy", e);
+      }
+    }
+
+    // Submit by writing bot_* fields onto the team's participation doc.
     await setDoc(
       doc(db, "tournaments", targetTournamentId, "teams", context.uid),
       {
         bot_code: code,
         bot_name: submissionName,
         bot_submitted_at: serverTimestamp(),
-        bot_validation_status: validation.ok ? "ok" : "error",
+        bot_validation_status: "ok",
         bot_validation_message: validation.message,
         bot_strategy_id: strategyId
       },
@@ -1233,9 +1256,7 @@ els.submitConfirmBtn.addEventListener("click", async () => {
     );
     closeSimpleModal(els.submitModal);
     showValidationMsg(els.submitMsg,
-      { ok: validation.ok, message: validation.ok
-        ? t("playground.submit.success", { name: submissionName })
-        : t("submit.invalid") + " " + validation.message });
+      { ok: true, message: t("playground.submit.success", { name: submissionName }) });
   } catch (err) {
     console.error(err);
     showValidationMsg(els.submitMsg, { ok: false, message: t("submit.error", { msg: err.message || err }) });

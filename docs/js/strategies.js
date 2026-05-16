@@ -37,6 +37,7 @@ const els = {
   btnTest: document.getElementById("btn-test"),
   btnDuplicate: document.getElementById("btn-duplicate"),
   btnDelete: document.getElementById("btn-delete"),
+  btnUnlock: document.getElementById("btn-unlock"),
   btnSubmit: document.getElementById("btn-submit"),
   btnRunBenchmarks: document.getElementById("btn-run-benchmarks"),
   profileEmpty: document.getElementById("profile-empty"),
@@ -374,7 +375,16 @@ async function selectStrategy(id) {
   els.detailName.readOnly = locked;
   els.detailDescription.readOnly = locked;
   els.btnDelete.disabled = locked;
-  els.btnSubmit.disabled = locked;
+  // Don't allow submitting a strategy that didn't validate — it would just
+  // forfeit at match time. Force the team to fix the code first.
+  const submitBlocked = locked || s.validation_status !== "ok";
+  els.btnSubmit.disabled = submitBlocked;
+  els.btnSubmit.title = (s.validation_status !== "ok" && !locked)
+    ? t("strategies.submit.disabled.invalid")
+    : "";
+  // Unlock button only makes sense when the strategy is currently locked
+  // to a tournament — it lets the team detach it so they can edit/resubmit.
+  els.btnUnlock.hidden = !locked;
   els.btnTest.textContent = locked
     ? t("strategies.detail.action.view")
     : t("strategies.detail.action.test");
@@ -476,6 +486,47 @@ els.btnDelete.addEventListener("click", async () => {
   else {
     els.detailEmpty.hidden = false;
     els.detailContent.hidden = true;
+  }
+});
+
+// ---------- Detach from tournament ----------
+// Lets the team take a submitted strategy back so they can edit it. Clears
+// the bot_* fields on the tournament participation (team stays registered,
+// just without a bot) and the last_submitted_* fields on the strategy.
+els.btnUnlock.addEventListener("click", async () => {
+  if (!selectedId) return;
+  const s = strategies.find((x) => x.id === selectedId);
+  if (!s || !s.last_submitted_tournament_id) return;
+  const tid = s.last_submitted_tournament_id;
+  const tName = tournamentName(tid);
+  if (!confirm(t("strategies.unlock.confirm", { name: tName }))) return;
+  els.btnUnlock.disabled = true;
+  try {
+    // Clear bot fields on the participation. Team stays registered to the
+    // tournament — they can re-submit (this or another strategy) later.
+    await updateDoc(
+      doc(db, "tournaments", tid, "teams", context.uid),
+      {
+        bot_code: null,
+        bot_name: null,
+        bot_submitted_at: null,
+        bot_validation_status: null,
+        bot_validation_message: null,
+        bot_strategy_id: null
+      }
+    );
+    await updateDoc(doc(strategiesCollection(), selectedId), {
+      last_submitted_at: null,
+      last_submitted_tournament_id: null
+    });
+    await refreshStrategies();
+    selectStrategy(selectedId);
+    showMsg(els.detailMsg, true, t("strategies.unlock.success", { name: tName }));
+  } catch (err) {
+    console.error(err);
+    showMsg(els.detailMsg, false, t("strategies.unlock.error", { msg: err.message || err }));
+  } finally {
+    els.btnUnlock.disabled = false;
   }
 });
 
