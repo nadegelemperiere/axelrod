@@ -271,12 +271,20 @@ function renderHeader() {
   if (!tournamentData) return;
   els.tTitle.textContent = tournamentData.name;
   const statusKey = tournamentData.status || "open_submission";
-  let metaText = t("tournament.meta", {
-    phase: tournamentData.phase,
-    turns: tournamentData.nb_turns,
-    noise: (tournamentData.noise_level * 100).toFixed(0),
-    status: tournamentStatusLabel(statusKey)
-  });
+  // Teams don't see nb_turns — they must build a strategy robust to an
+  // unknown horizon. Admin gets the full meta.
+  let metaText = context?.isAdmin
+    ? t("tournament.meta", {
+        phase: tournamentData.phase,
+        turns: tournamentData.nb_turns,
+        noise: (tournamentData.noise_level * 100).toFixed(0),
+        status: tournamentStatusLabel(statusKey)
+      })
+    : t("tournament.meta.team", {
+        phase: tournamentData.phase,
+        noise: (tournamentData.noise_level * 100).toFixed(0),
+        status: tournamentStatusLabel(statusKey)
+      });
   // Append the relevant date (completed → completed_at, otherwise launched_at
   // or created_at) so the team can locate the tournament in time without us
   // taking up a column in the matches table.

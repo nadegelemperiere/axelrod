@@ -67,8 +67,9 @@ async function refreshList() {
     const teamCountLabel = teamCount === 1
       ? t("tournaments.list.teams_count.one", { n: teamCount })
       : t("tournaments.list.teams_count", { n: teamCount });
-    const meta = t("tournaments.list.meta", {
-      turns: tournament.nb_turns,
+    // Teams shouldn't see nb_turns — keeps the match parameters partially
+    // hidden so the strategy has to be robust to unknown horizons.
+    const meta = t("tournaments.list.meta.team", {
       noise: (tournament.noise_level * 100).toFixed(0)
     });
     const hue = hashHue(tournament.id);

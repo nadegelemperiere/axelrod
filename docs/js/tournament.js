@@ -138,10 +138,14 @@ function renderHero() {
   const status = tournamentData.status || "open_submission";
   els.tStatus.textContent = tournamentStatusLabel(status).toUpperCase();
   els.tStatus.className = "badge t-hero-status " + statusBadgeClass(status);
-  els.tMeta.textContent = t("tournament.hero.params", {
-    turns: tournamentData.nb_turns,
-    noise: (tournamentData.noise_level * 100).toFixed(0)
-  });
+  els.tMeta.textContent = isAdmin
+    ? t("tournament.hero.params", {
+        turns: tournamentData.nb_turns,
+        noise: (tournamentData.noise_level * 100).toFixed(0)
+      })
+    : t("tournament.hero.params.team", {
+        noise: (tournamentData.noise_level * 100).toFixed(0)
+      });
 }
 
 function statusBadgeClass(s) {
@@ -190,7 +194,9 @@ function renderSettings() {
   const locale = document.documentElement.lang === "fr" ? "fr-FR" : "en-GB";
   const fmt = (ts) => ts?.toDate?.()?.toLocaleString(locale) || "—";
   const rows = [
-    { label: t("tournament.view.settings.turns"), value: tournamentData.nb_turns ?? "—" },
+    // nb_turns deliberately hidden from teams so the strategy has to be
+    // robust to an unknown horizon.
+    ...(isAdmin ? [{ label: t("tournament.view.settings.turns"), value: tournamentData.nb_turns ?? "—" }] : []),
     { label: t("tournament.view.settings.noise"), value: `${(tournamentData.noise_level * 100).toFixed(0)}%` },
     { label: t("tournament.view.settings.phase"), value: tournamentData.phase ?? "—" },
     { label: t("tournament.settings.matching"), value: t("tournament.settings.matching.round_robin") },
