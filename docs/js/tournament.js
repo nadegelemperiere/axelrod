@@ -109,6 +109,14 @@ onAuth(async (user) => {
   // Apply role classes so CSS can hide admin-only / team-only controls.
   document.body.classList.toggle("is-admin", isAdmin);
   document.body.classList.toggle("is-team", !isAdmin);
+  // Route the back link + logo home target to the right list depending on
+  // role. The HTML defaults assume an admin viewer (since this page is
+  // primarily admin-driven), but team users also land here for read-only
+  // views — they need to go back to tournaments.html, not admin.html.
+  const backLink = document.getElementById("back-link");
+  if (backLink) backLink.href = isAdmin ? "admin.html" : "tournaments.html";
+  const logo = document.querySelector(".sidebar-header .logo");
+  if (logo) logo.href = isAdmin ? "admin.html" : "team.html";
 
   const tSnap = await getDoc(doc(db, "tournaments", tournamentId));
   if (!tSnap.exists()) {

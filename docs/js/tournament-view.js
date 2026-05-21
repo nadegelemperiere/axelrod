@@ -98,6 +98,12 @@ loadTeamContext({
     context = ctx;
     els.main.hidden = false;
     els.main.classList.toggle("admin-view", !!ctx.isAdmin);
+    // Role-aware back link + logo. Default HTML targets the team paths;
+    // admin viewers need to go back to admin.html instead.
+    const backLink = document.getElementById("back-link");
+    if (backLink) backLink.href = ctx.isAdmin ? "admin.html" : "tournaments.html";
+    const logo = document.querySelector(".sidebar-header .logo");
+    if (logo) logo.href = ctx.isAdmin ? "admin.html" : "team.html";
     await Promise.all([loadTournament(), loadTeams(), loadLeaderboard(), loadMatches()]);
     // pre-results state : no leaderboard yet → collapse the layout to just
     // the registered-teams card. Otherwise the team sees a dashboard of
