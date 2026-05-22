@@ -5957,3 +5957,375 @@ body.dense .card-section-title.small { font-size: 0.65rem; }
   overflow-y: auto;
   tab-size: 4;
 }
+
+/* ============================================================================
+ * Hot seat — two players on the same PC
+ * ============================================================================ */
+
+.hotseat-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.hotseat-setup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.hs-py-kw { color: #ff8a4a; font-weight: 700; }
+.hs-py-fn { color: #5fe3d8; }
+.hs-py-comment { color: #7d96a0; font-style: italic; }
+
+/* Hotseat banner: sits above the tree, prominently telling whose turn it
+ * is (or that both picks are revealed). It replaces the "pass the PC"
+ * full-screen interlude so the tree stays visible throughout the game.
+ */
+.hotseat-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1.25rem;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--border, #1d3a3f);
+  background: rgba(255, 255, 255, 0.02);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.4rem;
+}
+
+.hotseat-banner-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.hotseat-banner-text {
+  color: var(--text, #e4ecef);
+}
+
+.hotseat-banner.banner-pick {
+  border-color: rgba(95, 227, 216, 0.55);
+  background: rgba(95, 227, 216, 0.06);
+  box-shadow: 0 0 18px rgba(95, 227, 216, 0.18);
+}
+
+.hotseat-banner.banner-reveal {
+  border-color: rgba(255, 138, 74, 0.55);
+  background: rgba(255, 138, 74, 0.06);
+  box-shadow: 0 0 18px rgba(255, 138, 74, 0.18);
+}
+
+/* Parallel-tree: two columns (player view / Python view) running in
+ * lockstep. Each row pairs the lived game state on the left with its code
+ * equivalent on the right; arrows between rows describe the step. The
+ * idea is that students walk down the page and at every row they see the
+ * SAME information expressed both ways, building the bridge between
+ * playing the game and writing play().
+ */
+.parallel-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+.parallel-headers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-bottom: 0.2rem;
+}
+
+.parallel-header {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim, #7d96a0);
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--border, #1d3a3f);
+}
+
+.parallel-header-left { border-bottom-color: rgba(95, 227, 216, 0.35); color: var(--cyan, #5fe3d8); }
+.parallel-header-right { border-bottom-color: rgba(255, 138, 74, 0.35); color: #ff8a4a; }
+
+.parallel-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  align-items: stretch;
+  transition: opacity 0.2s, filter 0.2s;
+}
+
+/* Row states : the tree is always laid out in full, but each row signals
+ * where the student is in the flow. */
+.parallel-row.row-pending {
+  /* Future steps : visible but desaturated so the eye knows there's more
+   * to come without that content competing with the active step. */
+  opacity: 0.32;
+  filter: grayscale(0.6);
+}
+.parallel-row.row-active .parallel-cell {
+  /* The current step glows so it's unambiguous what the player should
+   * be looking at. Cyan on left (player view), warm tint on right (code). */
+  border-color: rgba(95, 227, 216, 0.7);
+  box-shadow: 0 0 0 1px rgba(95, 227, 216, 0.25), 0 0 18px rgba(95, 227, 216, 0.18);
+  background: rgba(95, 227, 216, 0.04);
+}
+.parallel-row.row-active .parallel-right {
+  border-color: rgba(255, 138, 74, 0.7);
+  box-shadow: 0 0 0 1px rgba(255, 138, 74, 0.22), 0 0 18px rgba(255, 138, 74, 0.16);
+  background: rgba(255, 138, 74, 0.04);
+}
+/* `row-done` is the default look — no extra rules needed. */
+
+.parallel-cell {
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--border, #1d3a3f);
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  justify-content: center;
+}
+
+.parallel-left { border-left: 3px solid rgba(95, 227, 216, 0.35); }
+.parallel-right { border-left: 3px solid rgba(255, 138, 74, 0.35); }
+
+.parallel-cell-label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim, #7d96a0);
+}
+
+.parallel-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim, #7d96a0);
+  padding: 0.25rem 0;
+}
+
+.parallel-arrow-glyph {
+  color: var(--cyan, #5fe3d8);
+  font-size: 1rem;
+}
+
+/* Cells container — reused inside parallel-left for history visuals. */
+.tree-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.tree-cells-empty {
+  font-style: italic;
+}
+
+/* Code snippets — Python literal lists and call signatures live on the
+ * right (.parallel-right). Same chrome whether it's a list, a call, or
+ * a return statement.
+ */
+.tree-pylist,
+.tree-call {
+  font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.88rem;
+  color: var(--text, #e4ecef);
+  background: #0c1a1f;
+  padding: 0.5rem 0.7rem;
+  border-radius: 4px;
+  border: 1px solid var(--border, #1d3a3f);
+  word-break: break-all;
+  display: block;
+}
+
+.tree-node-move {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+}
+
+.tree-node-move.c { color: #5fe3d8; }
+.tree-node-move.d { color: #ff6b35; }
+
+.tree-score-card {
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--radius-sm, 6px);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border, #1d3a3f);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: "JetBrains Mono", monospace;
+}
+
+.tree-score-name {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim, #7d96a0);
+}
+
+.tree-score-payoff {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--cyan, #5fe3d8);
+}
+
+.tree-update-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.tree-update-name {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim, #7d96a0);
+  min-width: 3em;
+}
+
+/* On narrow screens, stack the two columns vertically rather than try to
+ * cram everything side-by-side. We add a divider so the relationship is
+ * still readable. */
+@media (max-width: 720px) {
+  .parallel-headers,
+  .parallel-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hotseat-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.hotseat-choice {
+  padding: 1.4rem 1rem;
+  border-radius: var(--radius-sm, 6px);
+  border: 2px solid var(--border, #1d3a3f);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text, #e4ecef);
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.15s, border-color 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.hotseat-choice:hover { transform: translateY(-2px); }
+.hotseat-choice-c:hover { border-color: #5fe3d8; box-shadow: 0 0 18px rgba(95, 227, 216, 0.25); }
+.hotseat-choice-d:hover { border-color: #ff6b35; box-shadow: 0 0 18px rgba(255, 107, 53, 0.25); }
+
+.hotseat-choice-letter {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 2.4rem;
+  font-weight: 700;
+}
+
+.hotseat-choice-c .hotseat-choice-letter { color: #5fe3d8; }
+.hotseat-choice-d .hotseat-choice-letter { color: #ff6b35; }
+
+.hotseat-choice-label {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim, #7d96a0);
+}
+
+.hotseat-noise-line {
+  text-align: center;
+  color: #f0c674;
+}
+
+.hotseat-scoreboard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-sm, 6px);
+  font-family: "JetBrains Mono", monospace;
+}
+
+.hotseat-score {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--cyan, #5fe3d8);
+}
+
+/* End */
+.hotseat-end-scores {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-sm, 6px);
+  text-align: center;
+}
+
+.hotseat-end-name {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim, #7d96a0);
+}
+
+.hotseat-end-score {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 2.6rem;
+  font-weight: 700;
+  color: var(--cyan, #5fe3d8);
+}
+
+.hotseat-end-outcome {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.hotseat-h3 {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim, #7d96a0);
+  margin: 1rem 0 0.5rem;
+}

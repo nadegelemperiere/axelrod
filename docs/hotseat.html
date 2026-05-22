@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hot seat · Axelrod</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="hotseat">
+
+  <div class="app">
+
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="team.html" class="logo">
+          <img src="imgs/logo.png" alt="Axelrod" class="logo-mark" />
+          <div class="logo-text">
+            <div class="logo-name">Axelrod</div>
+            <div class="logo-tagline" data-i18n="app.tagline">The Tournament of Minds</div>
+          </div>
+        </a>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="sidebar-section">
+          <p class="sidebar-section-label" data-i18n="sidebar.lab">Laboratoire</p>
+          <a href="hotseat.html" class="sidebar-link" data-page="hotseat">
+            <img src="imgs/game.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.hotseat">Hot seat</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.hotseat.desc">Play face-to-face on the same PC</div>
+            </div>
+          </a>
+          <a href="playground.html" class="sidebar-link" data-page="playground">
+            <img src="imgs/playground.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.playground">Playground</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.playground.desc">Experiment and test your strategies</div>
+            </div>
+          </a>
+          <a href="strategies.html" class="sidebar-link" data-page="strategies">
+            <img src="imgs/strategies.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.strategies">My strategies</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.strategies.desc">Create, edit and manage your strategies</div>
+            </div>
+          </a>
+          <a href="duels.html" class="sidebar-link" data-page="duels">
+            <img src="imgs/training.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.duels">1v1 Duels</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.duels.desc">Challenge another team to a friendly match</div>
+            </div>
+          </a>
+        </div>
+        <div class="sidebar-section">
+          <a href="tournaments.html" class="sidebar-link" data-page="tournaments-list">
+            <img src="imgs/tournament.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.tournaments">Tournaments</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.tournaments.desc">Compete against other strategies</div>
+            </div>
+          </a>
+          <a href="rankings.html" class="sidebar-link" data-page="rankings">
+            <img src="imgs/rankings.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.leaderboards">Rankings</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.leaderboards.desc">Discover the best strategists</div>
+            </div>
+          </a>
+        </div>
+        <div class="sidebar-section admin-only" hidden>
+          <p class="sidebar-section-label" data-i18n="sidebar.admin">Admin</p>
+          <a href="admin.html" class="sidebar-link" data-page="admin-tournaments">
+            <img src="imgs/tournament.png" alt="" class="sidebar-icon" />
+            <div class="sidebar-link-text">
+              <div class="sidebar-link-title" data-i18n="sidebar.tournaments">Tournaments</div>
+              <div class="sidebar-link-desc" data-i18n="sidebar.tournaments.adminDesc">Manage active tournaments</div>
+            </div>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="sidebar-user-avatar" id="user-avatar">—</div>
+          <div class="sidebar-user-info">
+            <div class="sidebar-user-name" id="user-name">—</div>
+            <div class="sidebar-user-role" id="user-role">—</div>
+          </div>
+          <button class="lang-toggle" type="button" aria-label="Toggle language">FR</button>
+          <button class="sidebar-logout" id="logout-btn" type="button" data-i18n-title="app.logout" title="Sign out">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="content">
+
+      <div class="content-header">
+        <div>
+          <h1 data-i18n="hotseat.title">Hot seat</h1>
+          <p class="lede" data-i18n="hotseat.subtitle">Play the iterated prisoner's dilemma face-to-face. You ARE the play() function.</p>
+        </div>
+      </div>
+
+      <main id="main">
+
+        <!-- Stage 1: Setup -->
+        <section id="stage-setup" class="card hotseat-stage">
+          <div class="pg-card-head">
+            <h2 data-i18n="hotseat.setup.title">Setup</h2>
+          </div>
+          <div class="hotseat-setup-grid">
+            <label>
+              <span data-i18n="hotseat.setup.player_a">Player 1 name</span>
+              <input type="text" id="setup-player-a" value="Player 1" maxlength="20" />
+            </label>
+            <label>
+              <span data-i18n="hotseat.setup.player_b">Player 2 name</span>
+              <input type="text" id="setup-player-b" value="Player 2" maxlength="20" />
+            </label>
+            <label>
+              <span data-i18n="hotseat.setup.turns">Rounds</span>
+              <input type="number" id="setup-turns" min="3" max="50" value="10" />
+            </label>
+            <label>
+              <span data-i18n="hotseat.setup.noise">Noise %</span>
+              <input type="number" id="setup-noise" min="0" max="30" value="0" />
+            </label>
+          </div>
+          <p class="muted small" data-i18n="hotseat.setup.intro">
+            Each round, the active player sees what their play(my_history, opp_history) function would see — and picks C or D. The other player looks away while you pick.
+          </p>
+          <div class="modal-actions">
+            <button class="btn-save" type="button" id="setup-start-btn" data-i18n="hotseat.setup.start">Start the match</button>
+          </div>
+        </section>
+
+        <!-- Stage 2: Persistent tree shown for both picks AND the reveal.
+             Each row carries a state class (pending / active / done) so the
+             student can always see WHERE in the flow they are; values stay
+             masked as '?' until the relevant step has been resolved. -->
+        <section id="stage-tree" class="card hotseat-stage" hidden>
+          <div class="pg-card-head">
+            <h2><span data-i18n="hotseat.pick.round">Round</span> <span id="tree-round">0</span> / <span id="tree-total">0</span></h2>
+          </div>
+
+          <div class="hotseat-banner" id="tree-banner">
+            <span class="hotseat-banner-icon" id="tree-banner-icon">🎮</span>
+            <span class="hotseat-banner-text" id="tree-banner-text">—</span>
+          </div>
+
+          <div class="parallel-tree">
+            <div class="parallel-headers">
+              <div class="parallel-header parallel-header-left" data-i18n="hotseat.parallel.player_view">What you see (player view)</div>
+              <div class="parallel-header parallel-header-right" data-i18n="hotseat.parallel.python_view">What play() sees (code view)</div>
+            </div>
+
+            <!-- Inputs : your past moves -->
+            <div class="parallel-row" id="tree-row-my">
+              <div class="parallel-cell parallel-left">
+                <div class="parallel-cell-label" data-i18n="hotseat.tree.my_history">your past moves</div>
+                <div class="match-cells tree-cells" id="tree-cells-mine"></div>
+              </div>
+              <div class="parallel-cell parallel-right">
+                <code class="tree-pylist" id="tree-pylist-mine">my_history = []</code>
+              </div>
+            </div>
+
+            <!-- Inputs : opponent's past moves -->
+            <div class="parallel-row" id="tree-row-opp">
+              <div class="parallel-cell parallel-left">
+                <div class="parallel-cell-label" data-i18n="hotseat.tree.opp_history">opponent's past moves</div>
+                <div class="match-cells tree-cells" id="tree-cells-opp"></div>
+              </div>
+              <div class="parallel-cell parallel-right">
+                <code class="tree-pylist" id="tree-pylist-opp">opp_history = []</code>
+              </div>
+            </div>
+
+            <div class="parallel-arrow"><span class="parallel-arrow-glyph">▼</span> <span data-i18n="hotseat.tree.args">passed as arguments</span></div>
+
+            <!-- Function call -->
+            <div class="parallel-row" id="tree-row-call">
+              <div class="parallel-cell parallel-left">
+                <span data-i18n="hotseat.parallel.your_turn">It's your turn to decide</span>
+              </div>
+              <div class="parallel-cell parallel-right">
+                <code class="tree-call"><span class="hs-py-fn">play</span>(my_history, opp_history)</code>
+              </div>
+            </div>
+
+            <div class="parallel-arrow"><span class="parallel-arrow-glyph">▼</span> <span data-i18n="hotseat.tree.each_picks">each player picks</span></div>
+
+            <!-- A's pick -->
+            <div class="parallel-row" id="tree-row-pick-a">
+              <div class="parallel-cell parallel-left">
+                <div class="parallel-cell-label">
+                  <strong id="tree-a-name">Player 1</strong>
+                </div>
+                <div class="tree-node-move" id="tree-a-move">?</div>
+                <div class="hotseat-actions" id="tree-a-actions" hidden>
+                  <button type="button" class="hotseat-choice hotseat-choice-c" data-pick="C" data-side="A">
+                    <div class="hotseat-choice-letter">C</div>
+                    <div class="hotseat-choice-label" data-i18n="arena.legend.c">Cooperate</div>
+                  </button>
+                  <button type="button" class="hotseat-choice hotseat-choice-d" data-pick="D" data-side="A">
+                    <div class="hotseat-choice-letter">D</div>
+                    <div class="hotseat-choice-label" data-i18n="arena.legend.d">Defect</div>
+                  </button>
+                </div>
+              </div>
+              <div class="parallel-cell parallel-right">
+                <code class="tree-call"><span class="hs-py-kw">return</span> <span id="tree-a-return">'?'</span></code>
+              </div>
+            </div>
+
+            <!-- B's pick -->
+            <div class="parallel-row" id="tree-row-pick-b">
+              <div class="parallel-cell parallel-left">
+                <div class="parallel-cell-label">
+                  <strong id="tree-b-name">Player 2</strong>
+                </div>
+                <div class="tree-node-move" id="tree-b-move">?</div>
+                <div class="hotseat-actions" id="tree-b-actions" hidden>
+                  <button type="button" class="hotseat-choice hotseat-choice-c" data-pick="C" data-side="B">
+                    <div class="hotseat-choice-letter">C</div>
+                    <div class="hotseat-choice-label" data-i18n="arena.legend.c">Cooperate</div>
+                  </button>
+                  <button type="button" class="hotseat-choice hotseat-choice-d" data-pick="D" data-side="B">
+                    <div class="hotseat-choice-letter">D</div>
+                    <div class="hotseat-choice-label" data-i18n="arena.legend.d">Defect</div>
+                  </button>
+                </div>
+              </div>
+              <div class="parallel-cell parallel-right">
+                <code class="tree-call"><span class="hs-py-kw">return</span> <span id="tree-b-return">'?'</span></code>
+              </div>
+            </div>
+
+            <p class="muted small hotseat-noise-line" id="tree-noise-line" hidden></p>
+
+            <div class="parallel-arrow"><span class="parallel-arrow-glyph">▼</span> <span data-i18n="hotseat.tree.lookup">lookup in the payoff matrix</span></div>
+
+            <!-- Per-side payoff -->
+            <div class="parallel-row" id="tree-row-payoff">
+              <div class="parallel-cell parallel-left">
+                <div class="tree-score-card">
+                  <span class="tree-score-name" id="tree-payoff-a-name">Player 1</span>
+                  <span class="tree-score-payoff" id="tree-payoff-a-value">+?</span>
+                </div>
+                <div class="tree-score-card">
+                  <span class="tree-score-name" id="tree-payoff-b-name">Player 2</span>
+                  <span class="tree-score-payoff" id="tree-payoff-b-value">+?</span>
+                </div>
+              </div>
+              <div class="parallel-cell parallel-right">
+                <code class="tree-call" id="tree-payoff-call">PAYOFF[('?','?')] = (?, ?)</code>
+              </div>
+            </div>
+
+            <div class="parallel-arrow"><span class="parallel-arrow-glyph">▼</span> <span data-i18n="hotseat.tree.append">moves appended to the histories</span></div>
+
+            <!-- History updated -->
+            <div class="parallel-row" id="tree-row-update">
+              <div class="parallel-cell parallel-left">
+                <div class="tree-update-row">
+                  <span class="tree-update-name" id="tree-update-a-name">Player 1</span>
+                  <div class="match-cells tree-cells" id="tree-update-cells-a"></div>
+                </div>
+                <div class="tree-update-row">
+                  <span class="tree-update-name" id="tree-update-b-name">Player 2</span>
+                  <div class="match-cells tree-cells" id="tree-update-cells-b"></div>
+                </div>
+              </div>
+              <div class="parallel-cell parallel-right">
+                <code class="tree-pylist" id="tree-update-pylist-a">history_a = [...]</code>
+                <code class="tree-pylist" id="tree-update-pylist-b">history_b = [...]</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="hotseat-scoreboard">
+            <span data-i18n="hotseat.reveal.totals">Totals so far</span> :
+            <span class="hotseat-score" id="tree-total-a">0</span>
+            <span class="muted">vs</span>
+            <span class="hotseat-score" id="tree-total-b">0</span>
+          </div>
+
+          <div class="modal-actions" id="tree-next-actions" hidden>
+            <button class="btn-save" type="button" id="tree-next-btn" data-i18n="hotseat.reveal.next">Next round</button>
+          </div>
+        </section>
+
+        <!-- Stage 5: End-of-match summary -->
+        <section id="stage-end" class="card hotseat-stage" hidden>
+          <div class="pg-card-head">
+            <h2 data-i18n="hotseat.end.title">Match finished</h2>
+          </div>
+
+          <div class="hotseat-end-scores">
+            <div>
+              <div class="hotseat-end-name" id="end-a-name">—</div>
+              <div class="hotseat-end-score" id="end-a-score">0</div>
+            </div>
+            <div class="muted small">vs</div>
+            <div>
+              <div class="hotseat-end-name" id="end-b-name">—</div>
+              <div class="hotseat-end-score" id="end-b-score">0</div>
+            </div>
+            <div class="hotseat-end-outcome" id="end-outcome">—</div>
+          </div>
+
+          <h3 class="hotseat-h3" data-i18n="hotseat.end.history">Full history</h3>
+          <div class="match-row">
+            <span class="match-row-label" id="end-a-row-label">Player 1</span>
+            <div class="match-cells" id="end-history-a"></div>
+          </div>
+          <div class="match-row">
+            <span class="match-row-label" id="end-b-row-label">Player 2</span>
+            <div class="match-cells" id="end-history-b"></div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn-cancel" type="button" id="end-replay-btn" data-i18n="hotseat.end.replay">Replay (same settings)</button>
+            <button class="btn-save" type="button" id="end-new-btn" data-i18n="hotseat.end.new">New match</button>
+          </div>
+        </section>
+
+      </main>
+
+    </div>
+  </div>
+
+  <script type="module" src="js/i18n.js"></script>
+  <script type="module" src="js/hotseat.js"></script>
+</body>
+</html>
