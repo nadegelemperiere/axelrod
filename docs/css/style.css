@@ -4572,6 +4572,38 @@ body.dense .card-section-title.small { font-size: 0.65rem; }
 }
 .detail-tournament-link:hover { color: var(--cyan); }
 
+/* Strategy list inside the team-detail panel — same chrome as the
+ * tournaments list, but each row is a button that opens the code modal. */
+.detail-strategies {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.detail-strategies li {
+  padding: 0;
+}
+.detail-strategy-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.detail-strategy-row:hover { border-color: var(--cyan); color: var(--cyan); }
+.detail-strategy-name { font-family: "JetBrains Mono", monospace; }
+
 .detail-actions li button {
   display: flex;
   align-items: center;

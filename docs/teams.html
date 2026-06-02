@@ -177,6 +177,9 @@
           <h4 class="detail-section-label" data-i18n="teams.detail.tournaments">Tournaments</h4>
           <ul class="detail-tournaments" id="detail-tournaments"></ul>
 
+          <h4 class="detail-section-label" data-i18n="teams.detail.strategies_heading">Strategies</h4>
+          <ul class="detail-strategies" id="detail-strategies"></ul>
+
           <h4 class="detail-section-label" data-i18n="teams.detail.actions">Actions</h4>
           <ul class="detail-actions">
             <li><button type="button" id="action-edit" data-action="edit"><span>✏️</span><span data-i18n="teams.action.edit">Edit team</span></button></li>
@@ -222,6 +225,18 @@
               </div>
             </form>
           </div>
+        </div>
+      </div>
+
+      <!-- Strategy code viewer modal : full source of a team's strategy. -->
+      <div id="strategy-code-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true" style="max-width: 760px;">
+          <div class="modal-head">
+            <h2 id="strategy-code-title" data-i18n="teams.strategy.modal.title">Strategy code</h2>
+            <button class="modal-close" type="button" data-modal-close>×</button>
+          </div>
+          <p class="muted small" id="strategy-code-meta"></p>
+          <pre id="strategy-code-body" class="admin-duel-code"></pre>
         </div>
       </div>
 

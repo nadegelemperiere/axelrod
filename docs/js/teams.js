@@ -45,8 +45,15 @@ const els = {
   detailUid: document.getElementById("detail-uid"),
   detailSummary: document.getElementById("detail-summary"),
   detailTournaments: document.getElementById("detail-tournaments"),
+  detailStrategies: document.getElementById("detail-strategies"),
   actionEdit: document.getElementById("action-edit"),
   actionDelete: document.getElementById("action-delete"),
+
+  // Strategy code modal
+  strategyCodeModal: document.getElementById("strategy-code-modal"),
+  strategyCodeTitle: document.getElementById("strategy-code-title"),
+  strategyCodeMeta: document.getElementById("strategy-code-meta"),
+  strategyCodeBody: document.getElementById("strategy-code-body"),
 
   // Modal
   openCreateBtn: document.getElementById("open-create-btn"),
@@ -65,6 +72,7 @@ let teams = [];                    // [{id, display_name, emoji, email, created_
 let tournaments = [];              // [{id, name, status, nb_turns, noise_level}]
 let participationsByTeam = {};     // teamId → [{tournamentId, status, bot?}]
 let strategiesCountByTeam = {};    // teamId → count
+let strategiesByTeam = {};         // teamId → [{id, name, code, validation_status, ...}] (lazy)
 let pointsByTeam = {};             // teamId → total points across all tournaments
 let recordByTeam = {};             // teamId → { wins, losses, ties }
 let selectedTeamId = null;
@@ -541,7 +549,7 @@ function selectTeam(teamId) {
   renderDetail(teamId);
 }
 
-function renderDetail(teamId) {
+async function renderDetail(teamId) {
   const tm = teams.find((t) => t.id === teamId);
   if (!tm) { setDetailVisible(false); return; }
   setDetailVisible(true);
@@ -589,6 +597,70 @@ function renderDetail(teamId) {
       `;
     }).join("");
   }
+
+  await renderStrategiesList(teamId);
+}
+
+// Lazy-load and render the team's strategy library. Cached per teamId so
+// reopening a panel after browsing other teams doesn't re-hit Firestore.
+async function renderStrategiesList(teamId) {
+  els.detailStrategies.innerHTML = `<li class="muted small">${escapeHtml(t("teams.detail.strategies.loading"))}</li>`;
+  let list = strategiesByTeam[teamId];
+  if (!list) {
+    try {
+      const snap = await getDocs(collection(db, "teams", teamId, "strategies"));
+      list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      strategiesByTeam[teamId] = list;
+    } catch (err) {
+      console.error(err);
+      els.detailStrategies.innerHTML = `<li class="ko small">${escapeHtml(t("teams.detail.strategies.error"))}</li>`;
+      return;
+    }
+  }
+  // Guard against the user clicking another team while we were fetching.
+  if (selectedTeamId !== teamId) return;
+
+  if (list.length === 0) {
+    els.detailStrategies.innerHTML = `<li class="muted small">${escapeHtml(t("teams.detail.strategies.empty"))}</li>`;
+    return;
+  }
+  els.detailStrategies.innerHTML = list.map((s) => {
+    const badgeCls = s.validation_status === "ok" ? "ok"
+      : s.validation_status === "error" ? "ko"
+      : "";
+    const badgeLabel = s.validation_status === "ok" ? t("strategies.status.ready")
+      : s.validation_status === "error" ? t("strategies.status.error")
+      : t("strategies.status.draft");
+    return `
+      <li>
+        <button type="button" class="detail-strategy-row" data-strat="${escapeAttr(s.id)}" data-team="${escapeAttr(teamId)}">
+          <span class="detail-strategy-name">${escapeHtml(s.name || "(untitled)")}</span>
+          <span class="badge ${badgeCls}">${escapeHtml(badgeLabel)}</span>
+        </button>
+      </li>
+    `;
+  }).join("");
+  els.detailStrategies.querySelectorAll("button.detail-strategy-row").forEach((btn) => {
+    btn.addEventListener("click", () => openStrategyCodeModal(btn.dataset.team, btn.dataset.strat));
+  });
+}
+
+function openStrategyCodeModal(teamId, strategyId) {
+  const list = strategiesByTeam[teamId] || [];
+  const s = list.find((x) => x.id === strategyId);
+  if (!s) return;
+  const tm = teams.find((x) => x.id === teamId);
+  const teamName = tm?.display_name || teamId;
+  els.strategyCodeTitle.textContent = s.name || "(untitled)";
+  els.strategyCodeMeta.textContent = t("teams.strategy.modal.meta", {
+    team: teamName,
+    status: s.validation_status === "ok" ? t("strategies.status.ready")
+      : s.validation_status === "error" ? t("strategies.status.error")
+      : t("strategies.status.draft")
+  });
+  els.strategyCodeBody.textContent = s.code || "";
+  openModal(els.strategyCodeModal);
 }
 
 els.detailClose.addEventListener("click", () => {
@@ -714,4 +786,8 @@ function escapeHtml(s) {
     '"': "&quot;",
     "'": "&#39;"
   }[c]));
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/"/g, "&quot;");
 }
