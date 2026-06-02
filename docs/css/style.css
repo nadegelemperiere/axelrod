@@ -4604,6 +4604,37 @@ body.dense .card-section-title.small { font-size: 0.65rem; }
 .detail-strategy-row:hover { border-color: var(--cyan); color: var(--cyan); }
 .detail-strategy-name { font-family: "JetBrains Mono", monospace; }
 
+/* Small "view code" button next to each tournament row when a bot was
+ * submitted there. Reuses the same code modal as the strategy library. */
+.detail-tournament-codebtn {
+  padding: 0.15rem 0.4rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim, var(--muted));
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.detail-tournament-codebtn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+/* Small admin-only "view code" button on each leaderboard row in
+ * tournament-view. Same chrome as the teams-detail one for consistency. */
+.podium-extra-codebtn {
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.4rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim, var(--muted));
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.podium-extra-codebtn:hover { border-color: var(--cyan); color: var(--cyan); }
+
 .detail-actions li button {
   display: flex;
   align-items: center;

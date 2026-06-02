@@ -271,6 +271,18 @@
 
       </main>
 
+      <!-- Bot code modal (admin only — buttons that open it have .admin-only) -->
+      <div id="bot-code-modal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-modal="true" style="max-width: 760px;">
+          <div class="modal-head">
+            <h2 id="bot-code-title" data-i18n="teams.strategy.modal.title">Strategy code</h2>
+            <button class="modal-close" type="button" data-modal-close>×</button>
+          </div>
+          <p class="muted small" id="bot-code-meta"></p>
+          <pre id="bot-code-body" class="admin-duel-code"></pre>
+        </div>
+      </div>
+
     </div>
   </div>
 

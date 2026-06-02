@@ -579,13 +579,18 @@ async function renderDetail(teamId) {
   if (parts.length === 0) {
     els.detailTournaments.innerHTML = `<li class="muted small">${escapeHtml(t("teams.detail.no_tournament"))}</li>`;
   } else {
-    els.detailTournaments.innerHTML = parts.map((p) => {
+    els.detailTournaments.innerHTML = parts.map((p, i) => {
       const statusLabel = tournamentStatusLabel(p.tournamentStatus);
       const botBadge = p.botCode
         ? (p.botValidationStatus === "ok"
           ? `<span class="badge ok">${escapeHtml(t("tournament.bot.modal.status.valid"))}</span>`
           : `<span class="badge ko">${escapeHtml(t("tournament.bot.modal.status.invalid"))}</span>`)
         : `<span class="badge">${escapeHtml(t("teams.bot.none"))}</span>`;
+      // Show the "view code" affordance only when a bot was actually
+      // submitted to this tournament; otherwise there's nothing to view.
+      const codeBtn = p.botCode
+        ? `<button type="button" class="detail-tournament-codebtn" data-bot-idx="${i}" data-team="${escapeAttr(teamId)}" title="${escapeAttr(t("teams.detail.view_bot_code"))}">&lt;/&gt;</button>`
+        : "";
       return `
         <li>
           <a href="tournament-view.html?t=${encodeURIComponent(p.tournamentId)}" class="detail-tournament-link">
@@ -593,9 +598,17 @@ async function renderDetail(teamId) {
             <span class="muted small">${escapeHtml(statusLabel)}</span>
           </a>
           ${botBadge}
+          ${codeBtn}
         </li>
       `;
     }).join("");
+    els.detailTournaments.querySelectorAll(".detail-tournament-codebtn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openBotCodeModal(btn.dataset.team, parseInt(btn.dataset.botIdx, 10));
+      });
+    });
   }
 
   await renderStrategiesList(teamId);
@@ -660,6 +673,27 @@ function openStrategyCodeModal(teamId, strategyId) {
       : t("strategies.status.draft")
   });
   els.strategyCodeBody.textContent = s.code || "";
+  openModal(els.strategyCodeModal);
+}
+
+// Show the bot snapshot that was actually submitted to a tournament. Unlike
+// the strategy library (which may have been edited or deleted since), the
+// participation doc captures the exact code that ran in the matches.
+function openBotCodeModal(teamId, partIdx) {
+  const parts = participationsByTeam[teamId] || [];
+  const p = parts[partIdx];
+  if (!p || !p.botCode) return;
+  const tm = teams.find((x) => x.id === teamId);
+  const teamName = tm?.display_name || teamId;
+  els.strategyCodeTitle.textContent = p.botName || "(untitled)";
+  els.strategyCodeMeta.textContent = t("teams.bot.modal.meta", {
+    team: teamName,
+    tournament: p.tournamentName,
+    status: p.botValidationStatus === "ok"
+      ? t("tournament.bot.modal.status.valid")
+      : t("tournament.bot.modal.status.invalid")
+  });
+  els.strategyCodeBody.textContent = p.botCode;
   openModal(els.strategyCodeModal);
 }
 

@@ -31,6 +31,11 @@ const els = {
   podiumExtras: document.getElementById("podium-extras"),
   podiumTitle: document.getElementById("podium-title"),
   heroRadar: document.getElementById("hero-radar"),
+  // Bot code modal (admin only)
+  codeModal: document.getElementById("bot-code-modal"),
+  codeModalTitle: document.getElementById("bot-code-title"),
+  codeModalMeta: document.getElementById("bot-code-meta"),
+  codeModalBody: document.getElementById("bot-code-body"),
 
   // Mid row
   matrixTable: document.getElementById("matrix-table"),
@@ -143,7 +148,12 @@ async function loadTeams() {
       id: p.id,
       display_name: tdata.display_name,
       emoji: tdata.emoji,
-      bot_name: p.bot_name || null
+      bot_name: p.bot_name || null,
+      // Snapshot of the code that actually ran in the matches — useful so
+      // admins can audit what each team submitted after the fact, even if
+      // the team has since edited or deleted the strategy in their library.
+      bot_code: p.bot_code || null,
+      bot_validation_status: p.bot_validation_status || null
     };
   });
 }
@@ -417,13 +427,54 @@ function buildExtraRow(rank, entry, isMe) {
   li.className = cls;
   const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
   const rankLabel = medal ? medal : `#${rank}`;
+  // Admin-only "view code" button — uses the .admin-only class so the
+  // sidebar CSS toggles visibility based on body.is-admin.
+  const codeBtn = entry.team.bot_code
+    ? `<button type="button" class="podium-extra-codebtn admin-only" data-team-id="${escapeAttr(entry.id)}" title="${escapeAttr(t("teams.detail.view_bot_code"))}">&lt;/&gt;</button>`
+    : "";
   li.innerHTML = `
     <span class="podium-extra-rank">${rankLabel}</span>
     <span class="podium-extra-name">${entry.team.emoji ? escapeHtml(entry.team.emoji) + " " : ""}${escapeHtml(entry.team.display_name)}</span>
     <span class="podium-extra-score">${entry.score}</span>
+    ${codeBtn}
   `;
+  const btn = li.querySelector(".podium-extra-codebtn");
+  if (btn) btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openBotCodeModal(entry.id);
+  });
   return li;
 }
+
+// ---------- Bot code modal (admin only) ----------
+function openBotCodeModal(teamId) {
+  const tm = teams.find((x) => x.id === teamId);
+  if (!tm || !tm.bot_code) return;
+  els.codeModalTitle.textContent = tm.bot_name || "(untitled)";
+  els.codeModalMeta.textContent = t("teams.bot.modal.meta", {
+    team: tm.display_name || teamId,
+    tournament: tournamentData?.name || "",
+    status: tm.bot_validation_status === "ok"
+      ? t("tournament.bot.modal.status.valid")
+      : t("tournament.bot.modal.status.invalid")
+  });
+  els.codeModalBody.textContent = tm.bot_code;
+  els.codeModal.hidden = false;
+  els.codeModal.addEventListener("click", onCodeModalClick);
+}
+
+function onCodeModalClick(e) {
+  if (e.target === e.currentTarget || e.target.dataset.modalClose !== undefined || e.target.classList.contains("modal-close")) {
+    els.codeModal.hidden = true;
+    els.codeModal.removeEventListener("click", onCodeModalClick);
+  }
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !els.codeModal?.hidden) {
+    els.codeModal.hidden = true;
+    els.codeModal.removeEventListener("click", onCodeModalClick);
+  }
+});
 
 // ---------- Behavioral radar ----------
 async function renderRadar() {
@@ -858,6 +909,10 @@ function escapeHtml(s) {
     '"': "&quot;",
     "'": "&#39;"
   }[c]));
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/"/g, "&quot;");
 }
 
 document.addEventListener("langchange", () => {
