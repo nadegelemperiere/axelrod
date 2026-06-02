@@ -3507,7 +3507,9 @@ body.is-team  .admin-only { display: none !important; }
 
 .podium-extra {
   display: grid;
-  grid-template-columns: 2.5rem 1fr auto;
+  /* Fourth track for the admin-only "view code" button. Without an explicit
+     auto track here, the button wrapped to a new line below the row. */
+  grid-template-columns: 2.5rem 1fr auto auto;
   align-items: center;
   gap: 0.6rem;
   padding: 0.4rem 0.7rem;
@@ -4622,7 +4624,6 @@ body.dense .card-section-title.small { font-size: 0.65rem; }
 /* Small admin-only "view code" button on each leaderboard row in
  * tournament-view. Same chrome as the teams-detail one for consistency. */
 .podium-extra-codebtn {
-  margin-left: 0.4rem;
   padding: 0.1rem 0.4rem;
   font-family: "JetBrains Mono", monospace;
   font-size: 0.68rem;

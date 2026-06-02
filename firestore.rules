@@ -5,6 +5,12 @@
 // changes lives below + in README.md → "Schema changes".
 //
 // Changelog (most recent first) :
+//   2026-05-16  Lock team participation writes once tournament has launched.
+//               /tournaments/{tid}/teams/{uid} update by the team is now
+//               only allowed while the parent tournament's status is
+//               'open_submission'. Prevents post-run re-submissions from
+//               overwriting bot_code snapshots and de-syncing already-
+//               written matches. Admin can still update regardless.
 //   2026-05-16  Strategy lock cleanup : admin can now update a team's
 //               /strategies docs, so that removing a team from a tournament
 //               can also clear the strategy's lock fields. Without this,
@@ -100,16 +106,20 @@ service cloud.firestore {
 
       // Participation d'une équipe à ce tournoi. Le doc ID est l'UID de
       // l'équipe (égal à son UID Firebase Auth).
-      // - Admin : créer / supprimer (= inscrire / désinscrire l'équipe au tournoi)
-      // - Équipe propriétaire : peut mettre à jour son propre doc (= soumettre son bot).
-      //   La contrainte 1-shot est gérée côté UI.
+      // - Admin : créer / supprimer (= inscrire / désinscrire l'équipe au tournoi),
+      //   peut aussi update à tout moment (e.g. clearer bot_code en retirant l'équipe).
+      // - Équipe propriétaire : peut mettre à jour son propre doc UNIQUEMENT
+      //   tant que le tournoi est en open_submission. Une fois lancé (running)
+      //   ou terminé (completed), les bot_code/bot_name snapshotés ne doivent
+      //   plus bouger, sinon on désynchronise les matchs déjà joués.
       // Le champ team_id est dénormalisé pour permettre une collection group
       // query côté équipe ("dans quels tournois suis-je inscrite ?").
       match /teams/{teamId} {
         allow read: if isSignedIn();
         allow create, delete: if isAdmin();
         allow update: if isAdmin() ||
-                         (isSignedIn() && request.auth.uid == teamId);
+                         (isSignedIn() && request.auth.uid == teamId &&
+                          get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.status == 'open_submission');
       }
 
       // Matches et leaderboards écrits par l'admin depuis le runner Pyodide
